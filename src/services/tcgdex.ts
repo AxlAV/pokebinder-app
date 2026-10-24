@@ -188,3 +188,19 @@ export async function fetchCardDetail(
     `${TCGDEX_BASE_URL}/${lang}/cards/${encodeURIComponent(cardId)}`
   );
 }
+
+/**
+ * Obtiene las cartas que pertenecen a un tipo elemental desde TCGdex API.
+ */
+export async function fetchCardsByElementalType(
+  lang: CatalogLanguage,
+  typeName: string
+): Promise<TcgdexCardBrief[]> {
+  const trimmed = typeName.trim();
+  if (!trimmed) return [];
+  const results = await fetchJson<TcgdexCardBrief[]>(
+    `${TCGDEX_BASE_URL}/${lang}/cards?types=${encodeURIComponent(trimmed)}`
+  );
+  return [...results].reverse();
+}
+

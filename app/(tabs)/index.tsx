@@ -1,149 +1,244 @@
-import React, { useState } from 'react';
-import { ScrollView, View, Text, Pressable } from 'react-native';
+import React, { useState, useMemo } from 'react';
+import { View, Text, Pressable, FlatList } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import { BookOpen, Layers, Plus } from 'lucide-react-native';
+import { BookOpen, Layers, Plus, Sparkles } from 'lucide-react-native';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { BinderGridSkeleton } from '@/components/ui/BinderGridSkeleton';
 import { ErrorCard } from '@/components/ui/ErrorCard';
+import { BinderListItem } from '@/components/binders/BinderListItem';
+import {
+  CreateBinderModal,
+  type CreationMode,
+} from '@/components/binders/CreateBinderModal';
+import { BinderPaginatedView } from '@/components/binders/BinderPaginatedView';
+import {
+  useBindersQuery,
+  useOwnedCardsQuery,
+  useManualBinderCountsMapQuery,
+  useDeleteBinderMutation,
+} from '@/hooks/useDatabase';
+import { matchesElementalType } from '@/utils/elementalTypes';
+import type { BinderRow } from '@/db/schema';
 import { TOKENS } from '@/theme/tokens';
 
-type ViewState = 'empty' | 'loading' | 'error';
-
-const PREVIEW_POCKETS = [
-  '001/165',
-  '002/165',
-  '003/165',
-  '004/165',
-  '005/165',
-  '006/165',
-  '007/165',
-  '008/165',
-  '009/165',
-] as const;
+type FilterType = 'all' | 'set' | 'manual' | 'dynamic';
 
 export default function BindersScreen() {
-  const router = useRouter();
-  const [viewState, setViewState] = useState<ViewState>('empty');
+  const [filterType, setFilterType] = useState<FilterType>('all');
+  const [createModalVisible, setCreateModalVisible] = useState(false);
+  const [createInitialMode, setCreateInitialMode] =
+    useState<CreationMode>('set');
+  const [openedBinderId, setOpenedBinderId] = useState<string | null>(null);
+
+  const bindersQuery = useBindersQuery();
+  const ownedCardsQuery = useOwnedCardsQuery();
+  const manualCountsQuery = useManualBinderCountsMapQuery();
+  const deleteBinderMutation = useDeleteBinderMutation();
+
+  const allBinders = bindersQuery.data ?? [];
+  const ownedCards = ownedCardsQuery.data ?? [];
+  const manualCountsMap = manualCountsQuery.data ?? {};
+
+  // Mapa setId -> cantidad de cartas únicas obtenidas en inventario
+  const ownedUniqueBySet = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const entry of ownedCards) {
+      const sId = entry.card.setId;
+      counts[sId] = (counts[sId] ?? 0) + 1;
+    }
+    return counts;
+  }, [ownedCards]);
+
+  const filteredBinders = useMemo(() => {
+    if (filterType === 'all') return allBinders;
+    return allBinders.filter((b) => b.type === filterType);
+  }, [allBinders, filterType]);
+
+  const openedBinder = useMemo(
+    () => allBinders.find((b) => b.id === openedBinderId) ?? null,
+    [allBinders, openedBinderId]
+  );
+
+  const openCreateModal = (mode: CreationMode) => {
+    setCreateInitialMode(mode);
+    setCreateModalVisible(true);
+  };
+
+  const getBinderCardCount = (binder: BinderRow): number => {
+    if (binder.type === 'set' && binder.setId) {
+      return ownedUniqueBySet[binder.setId] ?? 0;
+    }
+    if (binder.type === 'manual') {
+      return manualCountsMap[binder.id] ?? 0;
+    }
+    if (binder.type === 'dynamic' && binder.ruleValue) {
+      const ruleVal = binder.ruleValue.trim().toLowerCase();
+      if (binder.ruleType === 'pokemon') {
+        return ownedCards.filter((entry) =>
+          entry.card.name.toLowerCase().includes(ruleVal)
+        ).length;
+      }
+      if (binder.ruleType === 'element') {
+        return ownedCards.filter((entry) =>
+          matchesElementalType(entry.card.typesJson, binder.ruleValue ?? '')
+        ).length;
+      }
+    }
+    return 0;
+  };
+
+  // Si hay un álbum abierto, mostrar su vista de carpeta paginada de 3x3 bolsillos
+  if (openedBinder) {
+    return (
+      <BinderPaginatedView
+        binder={openedBinder}
+        onBack={() => setOpenedBinderId(null)}
+      />
+    );
+  }
 
   return (
     <SafeAreaView className="flex-1 bg-binder" edges={['top']}>
       <ScreenHeader
         sectionCode="BÓVEDA LOCAL // SQLITE"
         title="Mis Álbumes"
-        subtitle="Carpetas por expansión oficial, Pokémon o reglas dinámicas"
-        counterText="00 ÁLBUMES"
+        subtitle="Carpetas por expansión oficial, manuales o reglas dinámicas"
+        counterText={`${String(allBinders.length).padStart(2, '0')} ÁLBUMES`}
       />
 
-      <ScrollView
-        className="flex-1"
-        contentContainerClassName="p-3 gap-3"
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Barra superior de filtro / estado de vista */}
-        <View className="flex-row items-center justify-between bg-page border border-stitch rounded-card px-3 py-2">
-          <View className="flex-row items-center gap-2">
-            <Layers size={15} color={TOKENS.accentPrimary} />
-            <Text className="font-mono text-xs text-muted">FORMATO HOJA 3×3</Text>
+      {/* Barra de creación rápida (Set / Manual / Dinámico) y filtros */}
+      <View className="px-3 pt-3 pb-2 gap-2.5">
+        <View className="bg-page border border-stitch rounded-card p-2.5 gap-2.5">
+          <View className="flex-row gap-1.5">
+            <Pressable
+              onPress={() => openCreateModal('set')}
+              className="flex-1 min-h-[44px] bg-foil rounded-pocket px-2 flex-row items-center justify-center gap-1 active:opacity-85"
+            >
+              <Plus size={14} color={TOKENS.bgBinder} />
+              <Text className="font-sans-semi text-[11px] uppercase text-binder">
+                Set Oficial
+              </Text>
+            </Pressable>
+
+            <Pressable
+              onPress={() => openCreateModal('manual')}
+              className="flex-1 min-h-[44px] bg-pocket border border-foil/60 rounded-pocket px-2 flex-row items-center justify-center gap-1 active:opacity-80"
+            >
+              <BookOpen size={14} color={TOKENS.accentPrimary} />
+              <Text className="font-sans-semi text-[11px] uppercase text-foil">
+                Manual
+              </Text>
+            </Pressable>
+
+            <Pressable
+              onPress={() => openCreateModal('dynamic')}
+              className="flex-1 min-h-[44px] bg-pocket border border-foil/60 rounded-pocket px-2 flex-row items-center justify-center gap-1 active:opacity-80"
+            >
+              <Sparkles size={14} color={TOKENS.accentPrimary} />
+              <Text className="font-sans-semi text-[11px] uppercase text-foil">
+                Dinámico
+              </Text>
+            </Pressable>
           </View>
 
-          <View className="flex-row items-center gap-1.5">
-            {(['empty', 'loading', 'error'] as const).map((mode) => {
-              const active = viewState === mode;
-              const label =
-                mode === 'empty' ? 'Vacío' : mode === 'loading' ? 'Carga' : 'Error';
-              return (
-                <Pressable
-                  key={mode}
-                  onPress={() => setViewState(mode)}
-                  className={`min-h-[44px] px-3 rounded-pocket border items-center justify-center ${
-                    active
-                      ? 'bg-pocket border-foil'
-                      : 'bg-binder border-stitch'
-                  }`}
-                >
-                  <Text
-                    className={`font-mono text-[10px] uppercase ${
-                      active ? 'text-foil' : 'text-muted'
+          <View className="flex-row items-center justify-between pt-2 border-t border-stitch">
+            <View className="flex-row items-center gap-1.5">
+              <Layers size={14} color={TOKENS.accentPrimary} />
+              <Text className="font-mono text-[10px] text-muted">
+                FILTRAR
+              </Text>
+            </View>
+
+            <View className="flex-row gap-1">
+              {(
+                [
+                  { id: 'all', label: 'Todos' },
+                  { id: 'set', label: 'Sets' },
+                  { id: 'manual', label: 'Manual' },
+                  { id: 'dynamic', label: 'Reglas' },
+                ] as const
+              ).map((tab) => {
+                const active = filterType === tab.id;
+                return (
+                  <Pressable
+                    key={tab.id}
+                    onPress={() => setFilterType(tab.id)}
+                    className={`min-h-[44px] px-2.5 rounded-pocket border items-center justify-center ${
+                      active
+                        ? 'bg-pocket border-foil'
+                        : 'bg-binder border-stitch'
                     }`}
                   >
-                    {label}
-                  </Text>
-                </Pressable>
-              );
-            })}
+                    <Text
+                      className={`font-mono text-[10px] uppercase ${
+                        active ? 'text-foil' : 'text-muted'
+                      }`}
+                    >
+                      {tab.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
           </View>
         </View>
+      </View>
 
-        {viewState === 'loading' ? (
-          <BinderGridSkeleton pageLabel="HOJA 01 // CARGANDO BOLSILLOS 3×3" />
-        ) : null}
-
-        {viewState === 'error' ? (
+      {/* Listado de álbumes persistidos en SQLite */}
+      <View className="flex-1 px-3">
+        {bindersQuery.isLoading ? (
+          <BinderGridSkeleton pageLabel="SQLITE // CARGANDO ÁLBUMES..." />
+        ) : bindersQuery.isError ? (
           <ErrorCard
             title="No se pudo abrir el índice de álbumes"
-            description="El archivo local de base de datos no respondió a la lectura inicial. Tus cartas guardadas no se han modificado."
-            retryLabel="Reintentar apertura"
-            onRetry={() => setViewState('empty')}
+            description="El archivo local de base de datos no respondió a la lectura inicial."
+            retryLabel="Reintentar lectura"
+            onRetry={() => bindersQuery.refetch()}
           />
-        ) : null}
+        ) : (
+          <FlatList
+            data={filteredBinders}
+            keyExtractor={(item) => item.id}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ gap: 8, paddingBottom: 24 }}
+            renderItem={({ item }) => (
+              <BinderListItem
+                binder={item}
+                cardCount={getBinderCardCount(item)}
+                onSelect={(binder) => setOpenedBinderId(binder.id)}
+                onDelete={(binderId) => deleteBinderMutation.mutate(binderId)}
+              />
+            )}
+            ListEmptyComponent={
+              <EmptyState
+                icon={BookOpen}
+                badge="SIN LÍMITES"
+                title={
+                  filterType === 'all'
+                    ? 'Tu estantería de carpetas está vacía'
+                    : filterType === 'set'
+                      ? 'Aún no tienes álbumes de Set Oficial'
+                      : filterType === 'manual'
+                        ? 'Aún no tienes carpetas manuales'
+                        : 'Aún no tienes álbumes dinámicos por regla'
+                }
+                description="Crea un álbum vinculado a un Set Oficial de TCGdex, una carpeta manual o un álbum dinámico por Pokémon o tipo elemental."
+                actionLabel="Crear Álbum de Set Oficial"
+                onAction={() => openCreateModal('set')}
+                secondaryActionLabel="Crear Álbum Dinámico"
+                onSecondaryAction={() => openCreateModal('dynamic')}
+              />
+            }
+          />
+        )}
+      </View>
 
-        {viewState === 'empty' ? (
-          <>
-            <EmptyState
-              icon={BookOpen}
-              badge="SIN LÍMITES"
-              title="Tu estantería de carpetas está vacía"
-              description="Crea un álbum completo vinculado a un set oficial de TCGdex o arma una carpeta personalizada con hojas de 9 bolsillos."
-              actionLabel="Explorar Sets Oficiales"
-              onAction={() => router.push('/(tabs)/explore')}
-              secondaryActionLabel="Ir al Escáner"
-              onSecondaryAction={() => router.push('/(tabs)/scanner')}
-            />
-
-            {/* Previsualización táctil de hoja Ultra PRO 3x3 vacía */}
-            <View className="bg-page border border-stitch rounded-card p-3">
-              <View className="flex-row items-center justify-between mb-2.5 pb-2 border-b border-stitch">
-                <View>
-                  <Text className="font-display-semi text-sm text-ink">
-                    Vista previa de hoja de 9 bolsillos
-                  </Text>
-                  <Text className="font-sans text-xs text-muted">
-                    Proporción estándar 2.5&quot; × 3.5&quot; con costura lateral
-                  </Text>
-                </View>
-                <Text className="font-mono text-xs text-foil">000/165</Text>
-              </View>
-
-              <View className="flex-row flex-wrap -mx-1">
-                {PREVIEW_POCKETS.map((code) => (
-                  <View key={code} className="w-1/3 p-1">
-                    <Pressable
-                      onPress={() => router.push('/(tabs)/explore')}
-                      style={{ aspectRatio: 5 / 7 }}
-                      className="bg-pocket border border-stitch rounded-pocket p-2 justify-between active:border-foil"
-                    >
-                      <View className="flex-row items-center justify-between">
-                        <Text className="font-mono text-[10px] text-muted">VACÍO</Text>
-                        <Plus size={12} color={TOKENS.textMuted} />
-                      </View>
-
-                      <View className="items-center justify-center my-auto py-2 border border-dashed border-stitch rounded-pocket">
-                        <Text className="font-mono text-[10px] text-muted/70">5:7</Text>
-                      </View>
-
-                      <Text className="font-mono text-[10px] text-muted text-right">
-                        {code}
-                      </Text>
-                    </Pressable>
-                  </View>
-                ))}
-              </View>
-            </View>
-          </>
-        ) : null}
-      </ScrollView>
+      <CreateBinderModal
+        visible={createModalVisible}
+        initialMode={createInitialMode}
+        onClose={() => setCreateModalVisible(false)}
+      />
     </SafeAreaView>
   );
 }

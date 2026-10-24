@@ -523,3 +523,22 @@ export async function getManualBinderCards(
 
   return rows.map((r) => r.card);
 }
+
+/**
+ * Obtiene un mapa binderId -> cantidad de cartas asignadas en carpetas manuales.
+ */
+export async function getManualBinderCountsMap(): Promise<Record<string, number>> {
+  const rows = await db
+    .select({
+      binderId: binderCards.binderId,
+      cardId: binderCards.cardId,
+    })
+    .from(binderCards);
+
+  const counts: Record<string, number> = {};
+  for (const row of rows) {
+    counts[row.binderId] = (counts[row.binderId] ?? 0) + 1;
+  }
+  return counts;
+}
+

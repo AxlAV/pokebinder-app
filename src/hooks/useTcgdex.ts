@@ -5,9 +5,11 @@ import {
   fetchSetDetail,
   searchCards,
   fetchCardDetail,
+  fetchCardsByElementalType,
   type TcgdexSetDetail,
   type TcgdexCardDetail,
 } from '@/services/tcgdex';
+import { getTcgdexTypeParam } from '@/utils/elementalTypes';
 import {
   upsertCachedCard,
   upsertCachedCardsBatch,
@@ -85,6 +87,22 @@ export function useCardSearchQuery(lang: CatalogLanguage, query: string) {
     queryFn: () => searchCards(lang, normalized),
     enabled: normalized.length >= 2,
     staleTime: 1000 * 60 * 15,
+  });
+}
+
+export function useCardsByElementalTypeQuery(
+  lang: CatalogLanguage,
+  ruleValue: string | null
+) {
+  return useQuery({
+    queryKey: ['tcgdex', 'cards-by-type', lang, ruleValue],
+    queryFn: () => {
+      if (!ruleValue) return [];
+      const typeParam = getTcgdexTypeParam(ruleValue, lang);
+      return fetchCardsByElementalType(lang, typeParam);
+    },
+    enabled: Boolean(ruleValue),
+    staleTime: 1000 * 60 * 30,
   });
 }
 

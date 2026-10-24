@@ -16,6 +16,7 @@ import {
   addCardToManualBinder,
   removeCardFromManualBinder,
   getManualBinderCards,
+  getManualBinderCountsMap,
   type CacheableCardInput,
   type CardVariantCounts,
   type CreateSetBinderInput,
@@ -36,6 +37,7 @@ export const DB_KEYS = {
     ['local-db', 'binder-detail', binderId] as const,
   manualBinderCards: (binderId: string | null) =>
     ['local-db', 'manual-binder-cards', binderId] as const,
+  manualBinderCountsMap: ['local-db', 'manual-binder-counts-map'] as const,
 };
 
 export function useCardVariantCountsQuery(cardId: string | null) {
@@ -159,6 +161,13 @@ export function useManualBinderCardsQuery(binderId: string | null) {
   });
 }
 
+export function useManualBinderCountsMapQuery() {
+  return useQuery<Record<string, number>>({
+    queryKey: DB_KEYS.manualBinderCountsMap,
+    queryFn: () => getManualBinderCountsMap(),
+  });
+}
+
 export function useCreateSetBinderMutation() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -219,6 +228,9 @@ export function useAddCardToManualBinderMutation() {
       queryClient.invalidateQueries({
         queryKey: DB_KEYS.manualBinderCards(variables.binderId),
       });
+      queryClient.invalidateQueries({
+        queryKey: DB_KEYS.manualBinderCountsMap,
+      });
       queryClient.invalidateQueries({ queryKey: DB_KEYS.binders });
     },
   });
@@ -237,6 +249,9 @@ export function useRemoveCardFromManualBinderMutation() {
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({
         queryKey: DB_KEYS.manualBinderCards(variables.binderId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: DB_KEYS.manualBinderCountsMap,
       });
       queryClient.invalidateQueries({ queryKey: DB_KEYS.binders });
     },
