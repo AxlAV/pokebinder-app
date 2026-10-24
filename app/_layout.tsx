@@ -1,5 +1,5 @@
 import '../global.css';
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -18,6 +18,8 @@ import {
   JetBrainsMono_400Regular,
   JetBrainsMono_600SemiBold,
 } from '@expo-google-fonts/jetbrains-mono';
+import { runDatabaseMigrations } from '@/db/client';
+import { ErrorCard } from '@/components/ui/ErrorCard';
 import { TOKENS } from '@/theme/tokens';
 
 export default function RootLayout() {
@@ -33,6 +35,27 @@ export default function RootLayout() {
       })
   );
 
+  const [dbReady, setDbReady] = useState(false);
+  const [dbError, setDbError] = useState<string | null>(null);
+
+  const initDatabase = useCallback(() => {
+    try {
+      setDbError(null);
+      runDatabaseMigrations();
+      setDbReady(true);
+    } catch (error) {
+      setDbError(
+        error instanceof Error
+          ? error.message
+          : 'Error al inicializar SQLite local'
+      );
+    }
+  }, []);
+
+  useEffect(() => {
+    initDatabase();
+  }, [initDatabase]);
+
   const [fontsLoaded] = useFonts({
     SpaceGrotesk_600SemiBold,
     SpaceGrotesk_700Bold,
@@ -43,11 +66,25 @@ export default function RootLayout() {
     JetBrainsMono_600SemiBold,
   });
 
-  if (!fontsLoaded) {
+  if (!fontsLoaded || (!dbReady && !dbError)) {
     return (
       <View className="flex-1 bg-binder items-center justify-center">
         <StatusBar style="light" />
         <ActivityIndicator color={TOKENS.accentPrimary} size="small" />
+      </View>
+    );
+  }
+
+  if (dbError) {
+    return (
+      <View className="flex-1 bg-binder justify-center p-4">
+        <StatusBar style="light" />
+        <ErrorCard
+          title="Fallo al inicializar la base de datos local"
+          description={dbError}
+          retryLabel="Reintentar migración SQLite"
+          onRetry={initDatabase}
+        />
       </View>
     );
   }
