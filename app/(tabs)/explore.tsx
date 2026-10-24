@@ -6,7 +6,6 @@ import {
   Pressable,
   FlatList,
   Image,
-  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -24,20 +23,24 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { BinderGridSkeleton } from '@/components/ui/BinderGridSkeleton';
 import { ErrorCard } from '@/components/ui/ErrorCard';
 import { CardPocketItem } from '@/components/cards/CardPocketItem';
+import { CardDetailModal } from '@/components/cards/CardDetailModal';
 import { SetListItem } from '@/components/sets/SetListItem';
 import { usePreferencesStore } from '@/store/usePreferencesStore';
 import {
   useSetsQuery,
   useSetDetailQuery,
   useCardSearchQuery,
-  useCardDetailQuery,
 } from '@/hooks/useTcgdex';
 import {
-  getCardImageUrl,
+  useSetOwnedMapQuery,
+  useOwnedCardsQuery,
+} from '@/hooks/useDatabase';
+import {
   getSetLogoUrl,
   type TcgdexCardBrief,
   type TcgdexSetBrief,
 } from '@/services/tcgdex';
+import type { CardVariantCounts } from '@/db/repository';
 import { TOKENS } from '@/theme/tokens';
 
 type ExploreTabMode = 'sets' | 'cards';
@@ -58,7 +61,7 @@ export default function ExploreScreen() {
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [selectedSet, setSelectedSet] = useState<TcgdexSetBrief | null>(null);
   const [setCardFilter, setSetCardFilter] = useState('');
-  const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
+  const [activeCard, setActiveCard] = useState<TcgdexCardBrief | null>(null);
 
   // Debounce para búsqueda de cartas en la API
   useEffect(() => {
@@ -74,7 +77,18 @@ export default function ExploreScreen() {
     language,
     mode === 'cards' ? debouncedQuery : ''
   );
-  const cardDetailQuery = useCardDetailQuery(language, selectedCardId);
+
+  // Estado de inventario en SQLite para pintar insignias de copias en tiempo real
+  const setOwnedMapQuery = useSetOwnedMapQuery(selectedSet?.id ?? null);
+  const ownedCardsQuery = useOwnedCardsQuery();
+
+  const globalOwnedMap = useMemo(() => {
+    const map: Record<string, CardVariantCounts> = {};
+    for (const item of ownedCardsQuery.data ?? []) {
+      map[item.card.id] = item.counts;
+    }
+    return map;
+  }, [ownedCardsQuery.data]);
 
   // Filtrado local de expansiones cuando está en modo "sets"
   const filteredSets = useMemo(() => {
@@ -110,6 +124,8 @@ export default function ExploreScreen() {
   if (selectedSet) {
     const detail = setDetailQuery.data;
     const setLogoUrl = getSetLogoUrl(detail?.logo ?? selectedSet.logo);
+    const ownedInSetMap = setOwnedMapQuery.data ?? globalOwnedMap;
+    const ownedUniqueCount = Object.keys(ownedInSetMap).length;
 
     return (
       <SafeAreaView className="flex-1 bg-binder" edges={['top']}>
@@ -174,8 +190,8 @@ export default function ExploreScreen() {
                 {detail?.name ?? selectedSet.name}
               </Text>
               <Text className="font-mono text-xs text-muted tabular-nums mt-0.5">
-                {selectedSet.cardCount.official} OFICIALES •{' '}
-                {selectedSet.cardCount.total} TOTAL
+                EN INVENTARIO: {ownedUniqueCount}/{selectedSet.cardCount.official}{' '}
+                • TOTAL SET: {selectedSet.cardCount.total}
               </Text>
             </View>
           </View>
@@ -232,7 +248,10 @@ export default function ExploreScreen() {
                 <CardPocketItem
                   card={item}
                   officialTotal={selectedSet.cardCount.official}
-                  onPress={(card) => setSelectedCardId(card.id)}
+                  variantCounts={
+                    ownedInSetMap[item.id] ?? globalOwnedMap[item.id]
+                  }
+                  onPress={(card) => setActiveCard(card)}
                 />
               )}
               ListEmptyComponent={
@@ -251,13 +270,17 @@ export default function ExploreScreen() {
           )}
         </View>
 
-        <CardPreviewModal
-          cardId={selectedCardId}
-          detail={cardDetailQuery.data ?? null}
-          isLoading={cardDetailQuery.isLoading}
-          isError={cardDetailQuery.isError}
-          onRetry={() => cardDetailQuery.refetch()}
-          onClose={() => setSelectedCardId(null)}
+        <CardDetailModal
+          cardId={activeCard?.id ?? null}
+          fallbackCard={activeCard}
+          fallbackSet={{
+            id: selectedSet.id,
+            name: detail?.name ?? selectedSet.name,
+            logo: detail?.logo ?? selectedSet.logo,
+            officialCount: selectedSet.cardCount.official,
+            totalCount: selectedSet.cardCount.total,
+          }}
+          onClose={() => setActiveCard(null)}
         />
       </SafeAreaView>
     );
@@ -488,7 +511,8 @@ export default function ExploreScreen() {
               renderItem={({ item }) => (
                 <CardPocketItem
                   card={item}
-                  onPress={(card) => setSelectedCardId(card.id)}
+                  variantCounts={globalOwnedMap[item.id]}
+                  onPress={(card) => setActiveCard(card)}
                 />
               )}
               ListEmptyComponent={
@@ -517,195 +541,11 @@ export default function ExploreScreen() {
         </View>
       )}
 
-      <CardPreviewModal
-        cardId={selectedCardId}
-        detail={cardDetailQuery.data ?? null}
-        isLoading={cardDetailQuery.isLoading}
-        isError={cardDetailQuery.isError}
-        onRetry={() => cardDetailQuery.refetch()}
-        onClose={() => setSelectedCardId(null)}
+      <CardDetailModal
+        cardId={activeCard?.id ?? null}
+        fallbackCard={activeCard}
+        onClose={() => setActiveCard(null)}
       />
     </SafeAreaView>
-  );
-}
-
-interface CardPreviewModalProps {
-  cardId: string | null;
-  detail: import('@/services/tcgdex').TcgdexCardDetail | null;
-  isLoading: boolean;
-  isError: boolean;
-  onRetry: () => void;
-  onClose: () => void;
-}
-
-/**
- * Vista previa de carta de TCGdex (se conectará al inventario SQLite en el Paso 5).
- */
-function CardPreviewModal({
-  cardId,
-  detail,
-  isLoading,
-  isError,
-  onRetry,
-  onClose,
-}: CardPreviewModalProps) {
-  if (!cardId) return null;
-
-  const highResUrl = getCardImageUrl(detail?.image, 'high');
-  const officialCount = detail?.set?.cardCount?.official;
-  const numberLabel =
-    detail && officialCount
-      ? `${detail.localId.padStart(3, '0')}/${String(officialCount).padStart(3, '0')}`
-      : detail
-        ? `#${detail.localId}`
-        : cardId;
-
-  return (
-    <Modal
-      visible={Boolean(cardId)}
-      transparent
-      animationType="fade"
-      onRequestClose={onClose}
-    >
-      <View className="flex-1 bg-binder/90 justify-center p-4">
-        <View className="bg-page border border-stitch rounded-card p-4">
-          <View className="flex-row items-center justify-between pb-3 border-b border-stitch">
-            <View className="flex-1 pr-2">
-              <Text className="font-mono text-xs text-foil tabular-nums">
-                {numberLabel}
-              </Text>
-              <Text
-                className="font-display text-lg text-ink mt-0.5"
-                numberOfLines={1}
-              >
-                {detail?.name ?? 'Cargando carta...'}
-              </Text>
-            </View>
-            <Pressable
-              onPress={onClose}
-              className="min-h-[44px] min-w-[44px] rounded-pocket bg-pocket border border-stitch items-center justify-center"
-            >
-              <X size={18} color={TOKENS.textPrimary} />
-            </Pressable>
-          </View>
-
-          {isLoading ? (
-            <View className="mt-3 gap-3">
-              <View className="items-center">
-                <View
-                  style={{ aspectRatio: 5 / 7, width: '68%' }}
-                  className="bg-pocket border border-stitch rounded-pocket p-3 justify-between opacity-75"
-                >
-                  <View className="h-3 w-20 rounded-pocket bg-page" />
-                  <View className="my-auto h-24 rounded-pocket bg-page/70 border border-stitch" />
-                  <View className="h-3 w-12 rounded-pocket bg-page self-end" />
-                </View>
-              </View>
-              <View className="bg-pocket border border-stitch rounded-pocket p-3 gap-2 opacity-75">
-                <View className="h-3 w-full rounded-pocket bg-page" />
-                <View className="h-3 w-3/4 rounded-pocket bg-page" />
-                <View className="h-3 w-1/2 rounded-pocket bg-page" />
-              </View>
-            </View>
-          ) : isError ? (
-            <View className="mt-3">
-              <ErrorCard
-                title="No se pudo cargar la ficha de la carta"
-                description="Comprueba tu conexión para ver la imagen en alta resolución y sus variantes."
-                onRetry={onRetry}
-              />
-            </View>
-          ) : detail ? (
-            <View className="mt-3 gap-3">
-              <View className="items-center">
-                <View
-                  style={{ aspectRatio: 5 / 7, width: '68%' }}
-                  className="bg-pocket border border-stitch rounded-pocket p-2 items-center justify-center"
-                >
-                  {highResUrl ? (
-                    <Image
-                      source={{ uri: highResUrl }}
-                      style={{ width: '100%', height: '100%' }}
-                      resizeMode="contain"
-                    />
-                  ) : (
-                    <Text className="font-mono text-xs text-muted">
-                      SIN IMAGEN EN TCGDEX
-                    </Text>
-                  )}
-                </View>
-              </View>
-
-              <View className="bg-pocket border border-stitch rounded-pocket p-3 gap-1.5">
-                <View className="flex-row items-center justify-between">
-                  <Text className="font-mono text-[11px] text-muted uppercase">
-                    EXPANSIÓN
-                  </Text>
-                  <Text
-                    className="font-sans-semi text-xs text-ink"
-                    numberOfLines={1}
-                  >
-                    {detail.set.name} ({detail.set.id.toUpperCase()})
-                  </Text>
-                </View>
-
-                {detail.rarity ? (
-                  <View className="flex-row items-center justify-between">
-                    <Text className="font-mono text-[11px] text-muted uppercase">
-                      RAREZA
-                    </Text>
-                    <Text className="font-mono text-xs text-foil">
-                      {detail.rarity}
-                    </Text>
-                  </View>
-                ) : null}
-
-                {detail.illustrator ? (
-                  <View className="flex-row items-center justify-between">
-                    <Text className="font-mono text-[11px] text-muted uppercase">
-                      ILUSTRADOR
-                    </Text>
-                    <Text className="font-sans text-xs text-ink">
-                      {detail.illustrator}
-                    </Text>
-                  </View>
-                ) : null}
-
-                {detail.variants ? (
-                  <View className="flex-row items-center justify-between pt-1.5 mt-1 border-t border-stitch">
-                    <Text className="font-mono text-[11px] text-muted uppercase">
-                      ACABADOS OFICIALES
-                    </Text>
-                    <View className="flex-row gap-1.5">
-                      {detail.variants.normal ? (
-                        <View className="bg-page border border-stitch rounded-pocket px-2 py-0.5">
-                          <Text className="font-mono text-[10px] text-ink">
-                            NRM
-                          </Text>
-                        </View>
-                      ) : null}
-                      {detail.variants.reverse ? (
-                        <View className="bg-page border border-stitch rounded-pocket px-2 py-0.5">
-                          <Text className="font-mono text-[10px] text-foil">
-                            REV
-                          </Text>
-                        </View>
-                      ) : null}
-                      {detail.variants.holo ? (
-                        <View className="bg-page border border-stitch rounded-pocket px-2 py-0.5">
-                          <Text className="font-mono text-[10px] text-foil">
-                            HLO
-                          </Text>
-                        </View>
-                      ) : null}
-                    </View>
-                  </View>
-                ) : null}
-              </View>
-            </View>
-          ) : null}
-        </View>
-      </View>
-    </Modal>
   );
 }

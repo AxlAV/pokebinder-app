@@ -17,6 +17,7 @@ import {
   removeCardFromManualBinder,
   getManualBinderCards,
   type CacheableCardInput,
+  type CardVariantCounts,
   type CreateSetBinderInput,
   type CreateManualBinderInput,
   type CreateDynamicBinderInput,
@@ -51,7 +52,7 @@ export function useCardVariantCountsQuery(cardId: string | null) {
 }
 
 export function useSetOwnedMapQuery(setId: string | null) {
-  return useQuery({
+  return useQuery<Record<string, CardVariantCounts>>({
     queryKey: DB_KEYS.setOwnedMap(setId),
     queryFn: () => {
       if (!setId) return {};

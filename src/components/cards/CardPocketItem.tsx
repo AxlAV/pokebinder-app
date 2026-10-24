@@ -2,11 +2,15 @@ import React, { useState } from 'react';
 import { View, Text, Image, Pressable } from 'react-native';
 import { ImageOff } from 'lucide-react-native';
 import { getCardImageUrl, type TcgdexCardBrief } from '@/services/tcgdex';
+import type { CardVariantCounts } from '@/db/repository';
 import { TOKENS } from '@/theme/tokens';
 
 interface CardPocketItemProps {
   card: TcgdexCardBrief;
   officialTotal?: number;
+  variantCounts?: CardVariantCounts;
+  /** Si es true, las cartas con 0 copias se muestran atenuadas (modo carpeta 3x3) */
+  dimIfMissing?: boolean;
   onPress?: (card: TcgdexCardBrief) => void;
 }
 
@@ -16,10 +20,15 @@ interface CardPocketItemProps {
 export function CardPocketItem({
   card,
   officialTotal,
+  variantCounts,
+  dimIfMissing = false,
   onPress,
 }: CardPocketItemProps) {
   const [imageError, setImageError] = useState(false);
   const imageUrl = getCardImageUrl(card.image, 'low');
+
+  const totalOwned = variantCounts?.total ?? 0;
+  const isOwned = totalOwned > 0;
 
   const formattedNumber = officialTotal
     ? `${card.localId.padStart(3, '0')}/${String(officialTotal).padStart(3, '0')}`
@@ -30,11 +39,15 @@ export function CardPocketItem({
       <Pressable
         onPress={() => onPress?.(card)}
         disabled={!onPress}
-        className="bg-pocket border border-stitch rounded-pocket p-1.5 active:border-foil"
+        className={`bg-pocket border rounded-pocket p-1.5 active:border-foil ${
+          isOwned ? 'border-foil/80' : 'border-stitch'
+        }`}
       >
         <View
           style={{ aspectRatio: 5 / 7 }}
-          className="w-full rounded-pocket overflow-hidden bg-binder items-center justify-center"
+          className={`w-full rounded-pocket overflow-hidden bg-binder items-center justify-center ${
+            dimIfMissing && !isOwned ? 'opacity-40' : 'opacity-100'
+          }`}
         >
           {imageUrl && !imageError ? (
             <Image
@@ -68,6 +81,15 @@ export function CardPocketItem({
               </Text>
             </View>
           )}
+
+          {/* Insignia de copias en inventario físico */}
+          {isOwned ? (
+            <View className="absolute top-1 right-1 bg-binder/90 border border-foil rounded-pocket px-1.5 py-0.5">
+              <Text className="font-mono-semi text-[10px] text-foil tabular-nums">
+                ×{totalOwned}
+              </Text>
+            </View>
+          ) : null}
         </View>
 
         <View className="mt-1.5 px-0.5">
@@ -78,6 +100,20 @@ export function CardPocketItem({
             >
               {formattedNumber}
             </Text>
+
+            {isOwned && variantCounts ? (
+              <View className="flex-row items-center gap-0.5">
+                {variantCounts.normal > 0 ? (
+                  <Text className="font-mono text-[8px] text-ink">N</Text>
+                ) : null}
+                {variantCounts.reverse > 0 ? (
+                  <Text className="font-mono text-[8px] text-foil">R</Text>
+                ) : null}
+                {variantCounts.holo > 0 ? (
+                  <Text className="font-mono text-[8px] text-lacquer">H</Text>
+                ) : null}
+              </View>
+            ) : null}
           </View>
           <Text
             className="font-sans-medium text-xs text-ink mt-0.5"
