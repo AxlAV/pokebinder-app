@@ -1,8 +1,9 @@
 import '../global.css';
-import React from 'react';
+import React, { useState } from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useFonts } from 'expo-font';
 import {
   SpaceGrotesk_600SemiBold,
@@ -20,6 +21,18 @@ import {
 import { TOKENS } from '@/theme/tokens';
 
 export default function RootLayout() {
+  const [queryClient] = useState(
+    () =>
+      new QueryClient({
+        defaultOptions: {
+          queries: {
+            retry: 1,
+            refetchOnWindowFocus: false,
+          },
+        },
+      })
+  );
+
   const [fontsLoaded] = useFonts({
     SpaceGrotesk_600SemiBold,
     SpaceGrotesk_700Bold,
@@ -40,16 +53,18 @@ export default function RootLayout() {
   }
 
   return (
-    <View className="flex-1 bg-binder">
-      <StatusBar style="light" />
-      <Stack
-        screenOptions={{
-          headerShown: false,
-          contentStyle: { backgroundColor: TOKENS.bgBinder },
-        }}
-      >
-        <Stack.Screen name="(tabs)" />
-      </Stack>
-    </View>
+    <QueryClientProvider client={queryClient}>
+      <View className="flex-1 bg-binder">
+        <StatusBar style="light" />
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            contentStyle: { backgroundColor: TOKENS.bgBinder },
+          }}
+        >
+          <Stack.Screen name="(tabs)" />
+        </Stack>
+      </View>
+    </QueryClientProvider>
   );
 }

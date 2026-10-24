@@ -2,7 +2,7 @@
 
 1. [x] Inicializar proyecto (carpeta, git, CLAUDE.md, plan, nota del Cerebro).
 2. [x] Crear proyecto Expo con TypeScript estricto, Expo Router y NativeWind; navegación inferior con 4 pestañas base (Mis Álbumes, Escáner, Explorar Sets, Estadísticas). Se comprueba abriendo la app en el teléfono con Expo y navegando entre las pantallas vacías sin errores.
-3. [ ] Integrar el servicio de TCGdex API (ES/EN) y construir "Explorar Sets" con buscador de cartas y vista de expansiones. Se comprueba buscando un Pokémon o expansión real y viendo la grilla con imágenes cargadas desde la API.
+3. [x] Integrar el servicio de TCGdex API (ES/EN) y construir "Explorar Sets" con buscador de cartas y vista de expansiones. Se comprueba buscando un Pokémon o expansión real y viendo la grilla con imágenes cargadas desde la API.
 4. [ ] Base de datos local con expo-sqlite + Drizzle: tablas de caché de cartas, inventario (variantes Normal/Reverse Holo/Holo y cantidades) y álbumes. Se comprueba con la migración aplicada al iniciar la app sin errores.
 5. [ ] Modal de detalle de carta conectado al inventario para sumar o restar copias por variante. Se comprueba agregando una carta, cerrando la app por completo y verificando que persiste al volver a abrirla.
 6. [ ] Gestor de "Mis Álbumes" (crear álbumes por Set Oficial y manuales). Se comprueba creando un álbum de set y uno manual y viéndolos en la lista tras reiniciar la app.
@@ -12,4 +12,4 @@
 10. [ ] Conectar el OCR al buscador de TCGdex y mostrar tarjeta flotante de agregado rápido en 1 toque con selección de variante. Se comprueba identificando una carta física en menos de un segundo y agregándola al álbum con su variante.
 11. [ ] Pestaña "Estadísticas": total de cartas, desglose por rareza/variante y progreso general de colecciones. Se comprueba añadiendo cartas desde el escáner y viendo la actualización inmediata de los contadores.
 
-Siguiente: paso 3.
+Siguiente: paso 4.
