@@ -1,0 +1,46 @@
+# Dependencias
+node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Builds nativos (prebuild)
+/android
+/ios
+*.apk
+*.aab
+*.ipa
+
+# Metro / caché
+.metro-health-check*
+*.tsbuildinfo
+
+# Llaves y credenciales
+.env
+.env*.local
+*.jks
+*.keystore
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.pem
+
+# Logs y sistema
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+*.log
+.DS_Store
+Thumbs.db
+
+# Claude local
+.claude/settings.local.json
+.claude/napkin.md
+
+# Lanzadores locales (Dispatch)
+Iniciar Claude RC.bat
+Iniciar agy RC.bat

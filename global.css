@@ -1,0 +1,14 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-binder: #111015;
+  --bg-page: #1A1820;
+  --bg-pocket: #23202B;
+  --text-primary: #F5F2EB;
+  --text-muted: #8E8899;
+  --accent-primary: #E5A93C;
+  --accent-secondary: #D94E34;
+  --border-subtle: #2E2A38;
+}

@@ -1,0 +1,17 @@
+Nombre de carpeta: pokebinder-app
+Nombre visible: PokeBinder
+Qué es: Aplicación móvil de colección de cartas Pokémon TCG inspirada en HoloDex sin límites premium, con escáner por cámara y álbumes virtuales personalizables (por set oficial, Pokémon o tipo).
+Stack: TypeScript, React Native (Expo con Expo Router), NativeWind (Tailwind CSS), Reanimated, expo-sqlite con Drizzle ORM, Zustand, TanStack Query, React Native Vision Camera + Google ML Kit OCR, TCGdex API.
+Plataformas: Android, iOS
+Identidad visual: Estilo oscuro inspirado en carpetas de colección Ultra PRO y HoloDex, cuadrículas de 3x3 bolsillos con contraste para cartas obtenidas (a color) y faltantes (escala de grises y opacidad reducida).
+Reglas del proyecto: Arquitectura offline-first con SQLite local; cero límites artificiales en cantidad de álbumes o cartas almacenadas; tipado estricto en TypeScript; soporte multiidioma en datos de cartas (español e inglés vía TCGdex API); separación clara entre catálogo en caché, inventario físico del usuario (con variantes Normal, Reverse Holo, Holo) y álbumes (manuales o dinámicos).
+MCP: ninguno
+Plan:
+1. Inicializar proyecto Expo con TypeScript, Expo Router y NativeWind, configurando la navegación inferior con 4 pestañas base (Mis Álbumes, Escáner, Explorar Sets, Estadísticas); se comprueba abriendo la app en el teléfono mediante Expo y navegando entre las pantallas vacías sin errores.
+2. Integrar el servicio de conexión a TCGdex API (ES/EN) y construir la pantalla "Explorar Sets" con buscador de cartas y vista de expansiones; se comprueba buscando un Pokémon o expansión real y visualizando la grilla con imágenes cargadas desde la API.
+3. Implementar la base de datos local con expo-sqlite (tablas de caché de cartas, inventario con variantes/cantidades y álbumes) y conectar el modal de detalle de carta para sumar o restar copias al inventario; se comprueba agregando una carta, cerrando la app por completo y verificando que persiste al volver a abrirla.
+4. Construir el gestor de "Mis Álbumes" y la vista de carpeta paginada de 3x3 bolsillos para álbumes por Set Oficial (mostrando faltantes en gris y obtenidas a color) y álbumes manuales; se comprueba creando un álbum de set, marcando cartas como obtenidas y deslizando las páginas de 9 bolsillos viendo el porcentaje de progreso actualizado.
+5. Implementar la lógica de álbumes dinámicos/personalizados basados en reglas automáticas (filtrar por nombre de Pokémon específico o por tipo elemental); se comprueba creando un álbum con regla por tipo o Pokémon y verificando que reúne automáticamente las cartas coincidentes del inventario.
+6. Desarrollar el módulo de cámara con guía visual y extracción de texto OCR (nombre superior y fracción numérica inferior XXX/YYY) conectado al buscador de TCGdex y tarjeta flotante de agregado rápido en 1 toque; se comprueba apuntando la cámara del celular a una carta física, verificando que la identifica en menos de un segundo y agregándola al álbum con su variante seleccionada.
+7. Implementar la pestaña de "Estadísticas" con el resumen total de cartas, desglose por rareza/variante y progreso general de colecciones; se comprueba añadiendo nuevas cartas desde el escáner y observando la actualización inmediata de los contadores.
+Fuera de alcance: Sincronización en la nube o cuentas de usuario multi-dispositivo, pasarelas de pago o suscripciones, mercado de compraventa entre usuarios y constructor de mazos competitivos (deck builder).
