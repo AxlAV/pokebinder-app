@@ -1,3 +1,7 @@
+import { NativeModules } from 'react-native';
+import TextRecognition, {
+  type TextLine,
+} from '@react-native-ml-kit/text-recognition';
 import type { TcgdexCardBrief } from '@/services/tcgdex';
 
 export interface OcrExtractedCardData {
@@ -11,8 +15,10 @@ export interface OcrExtractedCardData {
 }
 
 const NOISE_HEADER_PATTERNS = [
-  /^(b[aá]sico|basic|fase\s*[12]|stage\s*[12]|vstar|vmax|mega|restored)$/i,
-  /^(evoluciona\s+de|evolves\s+from|entrenador|trainer|objeto|item|partidario|supporter|estadio|stadium)$/i,
+  /^(b[aá]sico|basic|fase\s*[12]|stage\s*[12]|vstar|vmax|mega|restored|pok[eé]mon)$/i,
+  /^(evoluciona\s+de|evolves\s+from|entrenador|trainer|objeto|item|partidario|supporter|estadio|stadium|herramienta|tool)/i,
+  /^(pon\s+a|put\s+|coloca\s+|habilidad|ability|debilidad|weakness|resistencia|resistance|retirada|retreat)/i,
+  /^(illus\.|ilustr|©|n\.º|no\.)/i,
   /^\d+\s*(ps|hp)$/i,
   /^(ps|hp)\s*\d+$/i,
 ];
@@ -28,6 +34,25 @@ function normalizeOcrDigits(input: string): string {
     .replace(/(?<=\d)([Il|])/g, '1');
 }
 
+function cleanCandidateTitleLine(rawLine: string): string {
+  return rawLine
+    .replace(/\b(ps|hp)\s*\d{2,3}\b/gi, '')
+    .replace(/\b\d{2,3}\s*(ps|hp)\b/gi, '')
+    .replace(/\b(b[aá]sico|basic|fase\s*[12]|stage\s*[12])\b/gi, '')
+    .replace(/[|•«»"“”]/g, '')
+    .trim();
+}
+
+function isValidTitleCandidate(cleaned: string): boolean {
+  if (cleaned.length < 3 || cleaned.length > 32) return false;
+  if (/^\d+$/.test(cleaned)) return false;
+  if (!/[a-zA-ZáéíóúÁÉÍÓÚñÑ]/.test(cleaned)) return false;
+  if (NOISE_HEADER_PATTERNS.some((pat) => pat.test(cleaned))) return false;
+  // Descartar líneas con demasiadas palabras (suelen ser descripciones de ataques)
+  if (cleaned.split(/\s+/).length > 4) return false;
+  return true;
+}
+
 /**
  * Extrae el nombre superior de la carta y la fracción inferior XXX/YYY desde bloques de texto OCR (ML Kit).
  */
@@ -38,7 +63,7 @@ export function parseCardOcrText(rawText: string): OcrExtractedCardData {
     .map((l) => l.trim())
     .filter((l) => l.length > 0);
 
-  // 1. Buscar fracción inferior XXX/YYY (soporta promos/galería como TG15/TG30 o estándar 199/165)
+  // 1. Buscar fracción inferior XXX/YYY (soporta estándar 199/165, 025/165 o galería TG15/TG30)
   let extractedFraction: string | null = null;
   let localId: string | null = null;
   let printedSetTotal: string | null = null;
@@ -60,19 +85,10 @@ export function parseCardOcrText(rawText: string): OcrExtractedCardData {
 
   for (const line of lines) {
     if (fractionRegex.test(line)) continue;
+    const cleaned = cleanCandidateTitleLine(line);
+    if (!isValidTitleCandidate(cleaned)) continue;
 
-    // Limpiar indicadores de PS/HP en la misma línea (ej. "Charizard ex PS 330")
-    const withoutHp = line
-      .replace(/\b(ps|hp)\s*\d+\b/gi, '')
-      .replace(/\b\d+\s*(ps|hp)\b/gi, '')
-      .replace(/\b(b[aá]sico|basic|fase\s*[12]|stage\s*[12])\b/gi, '')
-      .trim();
-
-    if (withoutHp.length < 2) continue;
-    if (NOISE_HEADER_PATTERNS.some((pat) => pat.test(withoutHp))) continue;
-    if (/^\d+$/.test(withoutHp)) continue;
-
-    extractedName = withoutHp;
+    extractedName = cleaned;
     break;
   }
 
@@ -99,6 +115,88 @@ export function parseCardOcrText(rawText: string): OcrExtractedCardData {
     printedSetTotal,
     confidence,
   };
+}
+
+/**
+ * Ejecuta Google ML Kit Text Recognition sobre el URI de una foto capturada o subida de galería.
+ * Usa las coordenadas espaciales (frame.top y frame.height) para priorizar el título superior
+ * y el número de colección inferior XXX/YYY.
+ */
+export async function recognizeCardFromImageUri(
+  imageUri: string
+): Promise<string> {
+  if (!NativeModules.TextRecognition) {
+    throw new Error(
+      'El motor nativo de ML Kit OCR requiere instalar el APK actualizado.'
+    );
+  }
+
+  const result = await TextRecognition.recognize(imageUri);
+  const allLines: TextLine[] = [];
+
+  for (const block of result.blocks ?? []) {
+    for (const line of block.lines ?? []) {
+      if (line.text?.trim()) {
+        allLines.push(line);
+      }
+    }
+  }
+
+  if (allLines.length === 0) {
+    return result.text?.trim() ?? '';
+  }
+
+  // Ordenar de arriba hacia abajo según la coordenada vertical en la foto
+  allLines.sort((a, b) => (a.frame?.top ?? 0) - (b.frame?.top ?? 0));
+
+  const minTop = allLines[0]?.frame?.top ?? 0;
+  const maxTop = allLines[allLines.length - 1]?.frame?.top ?? minTop + 1;
+  const verticalSpan = Math.max(1, maxTop - minTop);
+
+  const fractionRegex = /\b([A-Z]{0,3}\d{1,4})\s*\/\s*([A-Z]{0,3}\d{1,4})\b/i;
+
+  // Buscar la mejor línea de título en el 40% superior de la carta (priorizando mayor altura de letra)
+  const topLines = allLines.filter(
+    (l) => ((l.frame?.top ?? minTop) - minTop) / verticalSpan <= 0.42
+  );
+
+  let bestTitleLine: string | null = null;
+  let bestHeight = -1;
+
+  for (const line of topLines.length > 0 ? topLines : allLines.slice(0, 5)) {
+    const normalized = normalizeOcrDigits(line.text);
+    if (fractionRegex.test(normalized)) continue;
+    const cleaned = cleanCandidateTitleLine(normalized);
+    if (!isValidTitleCandidate(cleaned)) continue;
+
+    const h = line.frame?.height ?? 0;
+    if (h > bestHeight) {
+      bestHeight = h;
+      bestTitleLine = cleaned;
+    }
+  }
+
+  // Buscar la fracción XXX/YYY empezando desde abajo
+  let detectedFraction: string | null = null;
+  for (let i = allLines.length - 1; i >= 0; i--) {
+    const normalized = normalizeOcrDigits(allLines[i].text);
+    const match = normalized.match(fractionRegex);
+    if (match) {
+      detectedFraction = `${match[1].toUpperCase()}/${match[2].toUpperCase()}`;
+      break;
+    }
+  }
+
+  const summaryLines: string[] = [];
+  if (bestTitleLine) summaryLines.push(bestTitleLine);
+  if (detectedFraction) summaryLines.push(detectedFraction);
+
+  if (summaryLines.length > 0) {
+    return summaryLines.join('\n');
+  }
+
+  // Si no se aisló un par limpio, devolver las líneas ordenadas de arriba a abajo
+  return allLines.map((l) => l.text.trim()).join('\n');
 }
 
 /**

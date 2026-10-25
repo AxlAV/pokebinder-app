@@ -163,8 +163,26 @@ export async function searchCards(
       const retryResults = await fetchJson<TcgdexCardBrief[]>(
         `${TCGDEX_BASE_URL}/${lang}/cards?${retryParams.toString()}`
       );
-      return retryResults.slice(0, 120);
+      if (retryResults.length > 0) {
+        return [...retryResults].reverse().slice(0, 120);
+      }
     }
+
+    // Si la combinación nombre + número no dio resultados (ej. por variación de OCR),
+    // intentar primero solo por nombre del Pokémon y luego solo por localId
+    if (namePart.length >= 2) {
+      const byNameOnly = await fetchJson<TcgdexCardBrief[]>(
+        `${TCGDEX_BASE_URL}/${lang}/cards?name=${encodeURIComponent(namePart)}`
+      );
+      if (byNameOnly.length > 0) {
+        return [...byNameOnly].reverse().slice(0, 120);
+      }
+    }
+
+    const byNumberOnly = await fetchJson<TcgdexCardBrief[]>(
+      `${TCGDEX_BASE_URL}/${lang}/cards?localId=${encodeURIComponent(fractionMatch[1])}`
+    );
+    return [...byNumberOnly].reverse().slice(0, 120);
   }
 
   // Priorizar cartas más recientes con imagen disponible y limitar lote de renderizado inicial
