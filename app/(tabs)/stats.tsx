@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
-import { ScrollView, View, Text, Pressable, Image } from 'react-native';
+import { ScrollView, View, Text, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import {
   BarChart3,
@@ -15,6 +16,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { BinderGridSkeleton } from '@/components/ui/BinderGridSkeleton';
 import { ErrorCard } from '@/components/ui/ErrorCard';
 import { CardDetailModal } from '@/components/cards/CardDetailModal';
+import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
 import {
   useInventoryStatsQuery,
   useOwnedCardsQuery,
@@ -107,16 +109,10 @@ export default function StatsScreen() {
       if (existing) {
         existing.uniqueOwned += 1;
         existing.physicalCopies += entry.counts.total;
-        if (
-          existing.officialTotal === 0 &&
-          entry.card.setOfficialCount > 0
-        ) {
-          existing.officialTotal = entry.card.setOfficialCount;
-        }
       } else {
         map.set(sId, {
           setId: sId,
-          setName: entry.card.setName || sId.toUpperCase(),
+          setName: entry.card.setName,
           uniqueOwned: 1,
           physicalCopies: entry.counts.total,
           officialTotal:
@@ -126,15 +122,25 @@ export default function StatsScreen() {
     }
 
     return Array.from(map.values()).sort(
-      (a, b) => b.uniqueOwned - a.uniqueOwned
+      (a, b) => b.physicalCopies - a.physicalCopies
     );
   }, [allBinders, ownedCards]);
+
+  const recentCards = useMemo(() => {
+    return [...ownedCards]
+      .sort((a, b) => b.card.updatedAt - a.card.updatedAt)
+      .slice(0, 10);
+  }, [ownedCards]);
 
   const isLoading = statsQuery.isLoading || ownedCardsQuery.isLoading;
   const isError = statsQuery.isError || ownedCardsQuery.isError;
 
   return (
-    <SafeAreaView className="flex-1 bg-binder" edges={['top']}>
+    <SafeAreaView
+      className="flex-1 bg-binder"
+      edges={['top']}
+      style={{ flex: 1, backgroundColor: TOKENS.bgBinder }}
+    >
       <ScreenHeader
         sectionCode="REGISTRO DE INVENTARIO // OFFLINE"
         title="Estadísticas"
@@ -143,9 +149,8 @@ export default function StatsScreen() {
       />
 
       <ScrollView
-        className="flex-1"
-        contentContainerClassName="p-3 gap-3 pb-8"
         showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ padding: 12, gap: 12, paddingBottom: 32 }}
       >
         {isLoading ? (
           <BinderGridSkeleton pageLabel="CALCULANDO MÉTRICAS DE INVENTARIO..." />
@@ -162,51 +167,149 @@ export default function StatsScreen() {
         ) : (
           <>
             {/* Panel 1: Balance de Colección y Desglose por Variante */}
-            <View className="bg-page border border-stitch rounded-card p-3">
-              <View className="flex-row items-center justify-between pb-2.5 mb-2.5 border-b border-stitch">
-                <View className="flex-row items-center gap-2">
+            <Animated.View
+              entering={FadeInDown.duration(260).springify()}
+              className="bg-page border border-stitch rounded-card p-3"
+              style={{
+                backgroundColor: TOKENS.bgPage,
+                borderColor: TOKENS.borderSubtle,
+                borderWidth: 1,
+                borderRadius: 12,
+                padding: 12,
+              }}
+            >
+              <View
+                className="flex-row items-center justify-between pb-2.5 mb-2.5 border-b border-stitch"
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  paddingBottom: 10,
+                  marginBottom: 10,
+                  borderBottomColor: TOKENS.borderSubtle,
+                  borderBottomWidth: 1,
+                }}
+              >
+                <View
+                  className="flex-row items-center gap-2"
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}
+                >
                   <Award size={16} color={TOKENS.accentPrimary} />
-                  <Text className="font-display-semi text-sm text-ink">
+                  <Text
+                    className="font-display-semi text-sm text-ink"
+                    style={{
+                      fontFamily: 'SpaceGrotesk_600SemiBold',
+                      fontSize: 14,
+                      color: TOKENS.textPrimary,
+                    }}
+                  >
                     Balance de Colección
                   </Text>
                 </View>
-                <Text className="font-mono text-xs text-foil tabular-nums">
+                <Text
+                  className="font-mono text-xs text-foil tabular-nums"
+                  style={{
+                    fontFamily: 'JetBrainsMono_600SemiBold',
+                    fontSize: 12,
+                    color: TOKENS.accentPrimary,
+                  }}
+                >
                   {stats.totalBinders} ÁLBUMES
                 </Text>
               </View>
 
-              <View className="flex-row gap-2">
-                <View className="flex-1 bg-pocket border border-stitch rounded-pocket p-3">
-                  <Text className="font-mono text-[10px] text-muted uppercase">
+              <View className="flex-row gap-2" style={{ flexDirection: 'row', gap: 8 }}>
+                <View
+                  className="flex-1 bg-pocket border border-stitch rounded-pocket p-3"
+                  style={{
+                    flex: 1,
+                    backgroundColor: TOKENS.bgPocket,
+                    borderColor: TOKENS.borderSubtle,
+                    borderWidth: 1,
+                    borderRadius: 6,
+                    padding: 12,
+                  }}
+                >
+                  <Text
+                    className="font-mono text-[10px] text-muted uppercase"
+                    style={{ fontFamily: 'JetBrainsMono_400Regular', fontSize: 10, color: TOKENS.textMuted }}
+                  >
                     TOTAL FÍSICO
                   </Text>
-                  <Text className="font-mono-semi text-2xl text-ink tabular-nums mt-1">
+                  <Text
+                    className="font-mono-semi text-2xl text-ink tabular-nums mt-1"
+                    style={{
+                      fontFamily: 'JetBrainsMono_600SemiBold',
+                      fontSize: 24,
+                      color: TOKENS.textPrimary,
+                      marginTop: 4,
+                    }}
+                  >
                     {String(stats.totalPhysicalCopies).padStart(4, '0')}
                   </Text>
-                  <Text className="font-sans text-xs text-muted mt-0.5">
+                  <Text
+                    className="font-sans text-xs text-muted mt-0.5"
+                    style={{ fontFamily: 'PlusJakartaSans_400Regular', fontSize: 11, color: TOKENS.textMuted, marginTop: 2 }}
+                  >
                     Copias registradas
                   </Text>
                 </View>
 
-                <View className="flex-1 bg-pocket border border-stitch rounded-pocket p-3">
-                  <Text className="font-mono text-[10px] text-muted uppercase">
+                <View
+                  className="flex-1 bg-pocket border border-stitch rounded-pocket p-3"
+                  style={{
+                    flex: 1,
+                    backgroundColor: TOKENS.bgPocket,
+                    borderColor: TOKENS.borderSubtle,
+                    borderWidth: 1,
+                    borderRadius: 6,
+                    padding: 12,
+                  }}
+                >
+                  <Text
+                    className="font-mono text-[10px] text-muted uppercase"
+                    style={{ fontFamily: 'JetBrainsMono_400Regular', fontSize: 10, color: TOKENS.textMuted }}
+                  >
                     CARTAS ÚNICAS
                   </Text>
-                  <Text className="font-mono-semi text-2xl text-foil tabular-nums mt-1">
+                  <Text
+                    className="font-mono-semi text-2xl text-foil tabular-nums mt-1"
+                    style={{
+                      fontFamily: 'JetBrainsMono_600SemiBold',
+                      fontSize: 24,
+                      color: TOKENS.accentPrimary,
+                      marginTop: 4,
+                    }}
+                  >
                     {String(stats.uniqueOwnedCards).padStart(4, '0')}
                   </Text>
-                  <Text className="font-sans text-xs text-muted mt-0.5">
+                  <Text
+                    className="font-sans text-xs text-muted mt-0.5"
+                    style={{ fontFamily: 'PlusJakartaSans_400Regular', fontSize: 11, color: TOKENS.textMuted, marginTop: 2 }}
+                  >
                     Distintas en bóveda
                   </Text>
                 </View>
               </View>
 
               {/* Desglose por variante física */}
-              <View className="mt-3 pt-2.5 border-t border-stitch gap-2">
-                <View className="flex-row items-center justify-between">
-                  <View className="flex-row items-center gap-1.5">
+              <View
+                className="mt-3 pt-2.5 border-t border-stitch gap-2"
+                style={{ marginTop: 12, paddingTop: 10, borderTopColor: TOKENS.borderSubtle, borderTopWidth: 1, gap: 8 }}
+              >
+                <View
+                  className="flex-row items-center justify-between"
+                  style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}
+                >
+                  <View
+                    className="flex-row items-center gap-1.5"
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                  >
                     <Sparkles size={13} color={TOKENS.accentPrimary} />
-                    <Text className="font-sans-medium text-xs text-ink">
+                    <Text
+                      className="font-sans-medium text-xs text-ink"
+                      style={{ fontFamily: 'PlusJakartaSans_500Medium', fontSize: 12, color: TOKENS.textPrimary }}
+                    >
                       Desglose por Acabado (Variante)
                     </Text>
                   </View>
@@ -217,39 +320,88 @@ export default function StatsScreen() {
                   <View
                     key={item.code}
                     className="bg-pocket border border-stitch rounded-pocket px-3 py-2 gap-1.5"
+                    style={{
+                      backgroundColor: TOKENS.bgPocket,
+                      borderColor: TOKENS.borderSubtle,
+                      borderWidth: 1,
+                      borderRadius: 6,
+                      paddingHorizontal: 12,
+                      paddingVertical: 8,
+                      gap: 6,
+                    }}
                   >
-                    <View className="flex-row items-center justify-between">
-                      <View className="flex-row items-center gap-2">
-                        <View className="bg-page border border-stitch rounded-pocket px-1.5 py-0.5">
-                          <Text className="font-mono text-[10px] text-foil">
+                    <View
+                      className="flex-row items-center justify-between"
+                      style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}
+                    >
+                      <View
+                        className="flex-row items-center gap-2"
+                        style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}
+                      >
+                        <View
+                          className="bg-page border border-stitch rounded-pocket px-1.5 py-0.5"
+                          style={{
+                            backgroundColor: TOKENS.bgPage,
+                            borderColor: TOKENS.borderSubtle,
+                            borderWidth: 1,
+                            borderRadius: 4,
+                            paddingHorizontal: 6,
+                            paddingVertical: 2,
+                          }}
+                        >
+                          <Text
+                            className="font-mono text-[10px] text-foil"
+                            style={{ fontFamily: 'JetBrainsMono_600SemiBold', fontSize: 10, color: TOKENS.accentPrimary }}
+                          >
                             {item.code}
                           </Text>
                         </View>
-                        <Text className="font-sans text-xs text-ink">
+                        <Text
+                          className="font-sans text-xs text-ink"
+                          style={{ fontFamily: 'PlusJakartaSans_400Regular', fontSize: 12, color: TOKENS.textPrimary }}
+                        >
                           {item.label}
                         </Text>
                       </View>
 
-                      <View className="flex-row items-center gap-3">
-                        <Text className="font-mono text-xs text-muted tabular-nums">
+                      <View
+                        className="flex-row items-center gap-3"
+                        style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}
+                      >
+                        <Text
+                          className="font-mono text-xs text-muted tabular-nums"
+                          style={{ fontFamily: 'JetBrainsMono_400Regular', fontSize: 11, color: TOKENS.textMuted }}
+                        >
                           {item.share}
                         </Text>
-                        <Text className="font-mono-semi text-xs text-ink tabular-nums">
+                        <Text
+                          className="font-mono-semi text-xs text-ink tabular-nums"
+                          style={{ fontFamily: 'JetBrainsMono_600SemiBold', fontSize: 12, color: TOKENS.textPrimary }}
+                        >
                           {String(item.count).padStart(4, '0')}
                         </Text>
                       </View>
                     </View>
 
-                    <View className="h-1.5 w-full bg-binder rounded-pocket overflow-hidden">
+                    <View
+                      className="h-1.5 w-full bg-binder rounded-pocket overflow-hidden"
+                      style={{
+                        height: 6,
+                        width: '100%',
+                        backgroundColor: TOKENS.bgBinder,
+                        borderRadius: 4,
+                        overflow: 'hidden',
+                      }}
+                    >
                       <View
-                        style={{ width: `${item.pct}%` }}
+                        style={{ width: `${item.pct}%`, height: '100%', backgroundColor: TOKENS.accentPrimary }}
                         className="h-full bg-foil"
                       />
                     </View>
                   </View>
                 ))}
               </View>
-            </View>
+            </Animated.View>
 
             {stats.totalPhysicalCopies === 0 ? (
               <EmptyState
@@ -265,15 +417,45 @@ export default function StatsScreen() {
             ) : (
               <>
                 {/* Panel 2: Progreso General de Colecciones / Sets */}
-                <View className="bg-page border border-stitch rounded-card p-3 gap-2.5">
-                  <View className="flex-row items-center justify-between pb-2 border-b border-stitch">
-                    <View className="flex-row items-center gap-1.5">
+                <Animated.View
+                  entering={FadeInDown.duration(280).delay(80).springify()}
+                  className="bg-page border border-stitch rounded-card p-3 gap-2.5"
+                  style={{
+                    backgroundColor: TOKENS.bgPage,
+                    borderColor: TOKENS.borderSubtle,
+                    borderWidth: 1,
+                    borderRadius: 12,
+                    padding: 12,
+                    gap: 10,
+                  }}
+                >
+                  <View
+                    className="flex-row items-center justify-between pb-2 border-b border-stitch"
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      paddingBottom: 8,
+                      borderBottomColor: TOKENS.borderSubtle,
+                      borderBottomWidth: 1,
+                    }}
+                  >
+                    <View
+                      className="flex-row items-center gap-1.5"
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                    >
                       <BookOpen size={14} color={TOKENS.accentPrimary} />
-                      <Text className="font-display-semi text-sm text-ink">
+                      <Text
+                        className="font-display-semi text-sm text-ink"
+                        style={{ fontFamily: 'SpaceGrotesk_600SemiBold', fontSize: 14, color: TOKENS.textPrimary }}
+                      >
                         Progreso de Expansiones
                       </Text>
                     </View>
-                    <Text className="font-mono text-[11px] text-muted tabular-nums">
+                    <Text
+                      className="font-mono text-[11px] text-muted tabular-nums"
+                      style={{ fontFamily: 'JetBrainsMono_400Regular', fontSize: 11, color: TOKENS.textMuted }}
+                    >
                       {setProgressList.length} SETS CON REGISTRO
                     </Text>
                   </View>
@@ -290,23 +472,41 @@ export default function StatsScreen() {
                       <View
                         key={setInfo.setId}
                         className="bg-pocket border border-stitch rounded-pocket p-2.5 gap-1.5"
+                        style={{
+                          backgroundColor: TOKENS.bgPocket,
+                          borderColor: TOKENS.borderSubtle,
+                          borderWidth: 1,
+                          borderRadius: 6,
+                          padding: 10,
+                          gap: 6,
+                        }}
                       >
-                        <View className="flex-row items-center justify-between">
-                          <View className="flex-1 pr-2">
+                        <View
+                          className="flex-row items-center justify-between"
+                          style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}
+                        >
+                          <View className="flex-1 pr-2" style={{ flex: 1, paddingRight: 8 }}>
                             <Text
                               className="font-display text-sm text-ink"
+                              style={{ fontFamily: 'SpaceGrotesk_700Bold', fontSize: 13, color: TOKENS.textPrimary }}
                               numberOfLines={1}
                             >
                               {setInfo.setName}
                             </Text>
-                            <Text className="font-mono text-[10px] text-muted uppercase tabular-nums">
+                            <Text
+                              className="font-mono text-[10px] text-muted uppercase tabular-nums"
+                              style={{ fontFamily: 'JetBrainsMono_400Regular', fontSize: 10, color: TOKENS.textMuted, marginTop: 2 }}
+                            >
                               SET {setInfo.setId.toUpperCase()} •{' '}
                               {setInfo.physicalCopies} COPIAS FÍSICAS
                             </Text>
                           </View>
 
-                          <View className="items-end">
-                            <Text className="font-mono-semi text-xs text-foil tabular-nums">
+                          <View className="items-end" style={{ alignItems: 'flex-end' }}>
+                            <Text
+                              className="font-mono-semi text-xs text-foil tabular-nums"
+                              style={{ fontFamily: 'JetBrainsMono_600SemiBold', fontSize: 11, color: TOKENS.accentPrimary }}
+                            >
                               {setInfo.officialTotal > 0
                                 ? `${setInfo.uniqueOwned}/${setInfo.officialTotal} (${pct.toFixed(1)}%)`
                                 : `${setInfo.uniqueOwned} ÚNICAS`}
@@ -315,9 +515,18 @@ export default function StatsScreen() {
                         </View>
 
                         {setInfo.officialTotal > 0 ? (
-                          <View className="h-1.5 w-full bg-binder rounded-pocket overflow-hidden">
+                          <View
+                            className="h-1.5 w-full bg-binder rounded-pocket overflow-hidden"
+                            style={{
+                              height: 6,
+                              width: '100%',
+                              backgroundColor: TOKENS.bgBinder,
+                              borderRadius: 4,
+                              overflow: 'hidden',
+                            }}
+                          >
                             <View
-                              style={{ width: `${pct}%` }}
+                              style={{ width: `${pct}%`, height: '100%', backgroundColor: TOKENS.accentPrimary }}
                               className="h-full bg-foil"
                             />
                           </View>
@@ -325,18 +534,48 @@ export default function StatsScreen() {
                       </View>
                     );
                   })}
-                </View>
+                </Animated.View>
 
                 {/* Panel 3: Desglose por Rareza */}
-                <View className="bg-page border border-stitch rounded-card p-3 gap-2">
-                  <View className="flex-row items-center justify-between pb-2 border-b border-stitch">
-                    <View className="flex-row items-center gap-1.5">
+                <Animated.View
+                  entering={FadeInDown.duration(280).delay(140).springify()}
+                  className="bg-page border border-stitch rounded-card p-3 gap-2"
+                  style={{
+                    backgroundColor: TOKENS.bgPage,
+                    borderColor: TOKENS.borderSubtle,
+                    borderWidth: 1,
+                    borderRadius: 12,
+                    padding: 12,
+                    gap: 8,
+                  }}
+                >
+                  <View
+                    className="flex-row items-center justify-between pb-2 border-b border-stitch"
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      paddingBottom: 8,
+                      borderBottomColor: TOKENS.borderSubtle,
+                      borderBottomWidth: 1,
+                    }}
+                  >
+                    <View
+                      className="flex-row items-center gap-1.5"
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                    >
                       <Star size={14} color={TOKENS.accentPrimary} />
-                      <Text className="font-display-semi text-sm text-ink">
+                      <Text
+                        className="font-display-semi text-sm text-ink"
+                        style={{ fontFamily: 'SpaceGrotesk_600SemiBold', fontSize: 14, color: TOKENS.textPrimary }}
+                      >
                         Desglose por Rareza
                       </Text>
                     </View>
-                    <Text className="font-mono text-[11px] text-muted tabular-nums">
+                    <Text
+                      className="font-mono text-[11px] text-muted tabular-nums"
+                      style={{ fontFamily: 'JetBrainsMono_400Regular', fontSize: 11, color: TOKENS.textMuted }}
+                    >
                       {stats.byRarity.length} CATEGORÍAS
                     </Text>
                   </View>
@@ -345,81 +584,151 @@ export default function StatsScreen() {
                     <View
                       key={r.rarity}
                       className="flex-row items-center justify-between bg-pocket border border-stitch rounded-pocket px-3 py-2"
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        backgroundColor: TOKENS.bgPocket,
+                        borderColor: TOKENS.borderSubtle,
+                        borderWidth: 1,
+                        borderRadius: 6,
+                        paddingHorizontal: 12,
+                        paddingVertical: 8,
+                      }}
                     >
-                      <Text className="font-sans-medium text-xs text-ink">
+                      <Text
+                        className="font-sans-medium text-xs text-ink"
+                        style={{ fontFamily: 'PlusJakartaSans_500Medium', fontSize: 12, color: TOKENS.textPrimary }}
+                      >
                         {r.rarity}
                       </Text>
-                      <Text className="font-mono-semi text-xs text-foil tabular-nums">
-                        {String(r.count).padStart(3, '0')} COPIAS
-                      </Text>
+                      <View
+                        className="flex-row items-center gap-2"
+                        style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}
+                      >
+                        <Text
+                          className="font-mono-semi text-xs text-foil tabular-nums"
+                          style={{ fontFamily: 'JetBrainsMono_600SemiBold', fontSize: 12, color: TOKENS.accentPrimary }}
+                        >
+                          {r.count} {r.count === 1 ? 'carta' : 'cartas'}
+                        </Text>
+                      </View>
                     </View>
                   ))}
-                </View>
+                </Animated.View>
 
-                {/* Panel 4: Últimas Adiciones al Inventario */}
-                <View className="bg-page border border-stitch rounded-card p-3 gap-2">
-                  <View className="flex-row items-center justify-between pb-2 border-b border-stitch">
-                    <Text className="font-display-semi text-sm text-ink">
-                      Últimas Cartas Registradas
-                    </Text>
-                    <Text className="font-mono text-[10px] text-foil uppercase">
-                      TOCA PARA EDITAR
-                    </Text>
-                  </View>
-
-                  {ownedCards.slice(0, 8).map(({ card, counts }) => {
-                    const img = getCardImageUrl(card.image ?? undefined, 'low');
-                    return (
-                      <Pressable
-                        key={card.id}
-                        onPress={() =>
-                          setSelectedCard({
-                            id: card.id,
-                            localId: card.localId,
-                            name: card.name,
-                            image: card.image ?? undefined,
-                          })
-                        }
-                        className="min-h-[44px] bg-pocket border border-stitch rounded-pocket px-2.5 py-2 flex-row items-center justify-between active:border-foil"
+                {/* Panel 4: Registro de Últimas Adiciones */}
+                {recentCards.length > 0 ? (
+                  <Animated.View
+                    entering={FadeInDown.duration(280).delay(200).springify()}
+                    className="bg-page border border-stitch rounded-card p-3 gap-2"
+                    style={{
+                      backgroundColor: TOKENS.bgPage,
+                      borderColor: TOKENS.borderSubtle,
+                      borderWidth: 1,
+                      borderRadius: 12,
+                      padding: 12,
+                      gap: 8,
+                    }}
+                  >
+                    <View
+                      className="flex-row items-center justify-between pb-2 border-b border-stitch"
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        paddingBottom: 8,
+                        borderBottomColor: TOKENS.borderSubtle,
+                        borderBottomWidth: 1,
+                      }}
+                    >
+                      <Text
+                        className="font-display-semi text-sm text-ink"
+                        style={{ fontFamily: 'SpaceGrotesk_600SemiBold', fontSize: 14, color: TOKENS.textPrimary }}
                       >
-                        <View className="flex-row items-center gap-2.5 flex-1 pr-2">
-                          <View className="w-8 h-11 bg-binder border border-stitch rounded-pocket overflow-hidden items-center justify-center">
-                            {img ? (
-                              <Image
-                                source={{ uri: img }}
-                                style={{ width: '100%', height: '100%' }}
-                                resizeMode="contain"
-                              />
-                            ) : null}
-                          </View>
-                          <View className="flex-1">
+                        Últimas Adiciones a la Bóveda
+                      </Text>
+                      <Text
+                        className="font-mono text-[10px] text-foil uppercase"
+                        style={{ fontFamily: 'JetBrainsMono_600SemiBold', fontSize: 10, color: TOKENS.accentPrimary }}
+                      >
+                        EN MEMORIA
+                      </Text>
+                    </View>
+
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={{ gap: 8, paddingVertical: 4 }}
+                    >
+                      {recentCards.map((entry) => {
+                        const img = getCardImageUrl(entry.card.image ?? undefined, 'low');
+                        return (
+                          <AnimatedPressable
+                            key={entry.card.id}
+                            onPress={() =>
+                              setSelectedCard({
+                                id: entry.card.id,
+                                localId: entry.card.localId,
+                                name: entry.card.name,
+                                image: entry.card.image ?? undefined,
+                              })
+                            }
+                            className="w-20 bg-pocket border border-stitch rounded-pocket p-1.5 items-center active:border-foil"
+                            style={{
+                              width: 80,
+                              backgroundColor: TOKENS.bgPocket,
+                              borderColor: TOKENS.borderSubtle,
+                              borderWidth: 1,
+                              borderRadius: 6,
+                              padding: 6,
+                              alignItems: 'center',
+                            }}
+                          >
+                            <View
+                              style={{
+                                aspectRatio: 5 / 7,
+                                width: '100%',
+                                backgroundColor: TOKENS.bgBinder,
+                                borderRadius: 4,
+                                overflow: 'hidden',
+                              }}
+                            >
+                              {img ? (
+                                <Image
+                                  source={{ uri: img }}
+                                  style={{ width: '100%', height: '100%' }}
+                                  resizeMode="contain"
+                                />
+                              ) : null}
+                            </View>
                             <Text
-                              className="font-display text-sm text-ink"
+                              className="font-mono text-[9px] text-foil tabular-nums mt-1"
+                              style={{ fontFamily: 'JetBrainsMono_600SemiBold', fontSize: 9, color: TOKENS.accentPrimary, marginTop: 4 }}
                               numberOfLines={1}
                             >
-                              {card.name}
+                              #{entry.card.localId}
                             </Text>
-                            <Text className="font-mono text-[10px] text-muted tabular-nums">
-                              #{card.localId} • {card.setName}
+                            <Text
+                              className="font-sans-medium text-[10px] text-ink text-center"
+                              style={{ fontFamily: 'PlusJakartaSans_500Medium', fontSize: 10, color: TOKENS.textPrimary, textAlign: 'center' }}
+                              numberOfLines={1}
+                            >
+                              {entry.card.name}
                             </Text>
-                          </View>
-                        </View>
-
-                        <View className="bg-page border border-foil/60 rounded-pocket px-2 py-1">
-                          <Text className="font-mono-semi text-xs text-foil tabular-nums">
-                            ×{counts.total}
-                          </Text>
-                        </View>
-                      </Pressable>
-                    );
-                  })}
-                </View>
+                          </AnimatedPressable>
+                        );
+                      })}
+                    </ScrollView>
+                  </Animated.View>
+                ) : null}
               </>
             )}
           </>
         )}
       </ScrollView>
 
+      {/* Modal para ver y editar copias de la carta seleccionada */}
       <CardDetailModal
         cardId={selectedCard?.id ?? null}
         fallbackCard={selectedCard}

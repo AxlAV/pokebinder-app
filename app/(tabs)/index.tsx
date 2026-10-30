@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { View, Text, Pressable, FlatList } from 'react-native';
+import { View, Text, FlatList } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BookOpen, Layers, Plus, Sparkles } from 'lucide-react-native';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
@@ -7,6 +7,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { BinderGridSkeleton } from '@/components/ui/BinderGridSkeleton';
 import { ErrorCard } from '@/components/ui/ErrorCard';
 import { BinderListItem } from '@/components/binders/BinderListItem';
+import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
 import {
   CreateBinderModal,
   type CreationMode,
@@ -99,7 +100,11 @@ export default function BindersScreen() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-binder" edges={['top']}>
+    <SafeAreaView
+      className="flex-1 bg-binder"
+      edges={['top']}
+      style={{ flex: 1, backgroundColor: TOKENS.bgBinder }}
+    >
       <ScreenHeader
         sectionCode="BÓVEDA LOCAL // SQLITE"
         title="Mis Álbumes"
@@ -108,49 +113,142 @@ export default function BindersScreen() {
       />
 
       {/* Barra de creación rápida (Set / Manual / Dinámico) y filtros */}
-      <View className="px-3 pt-3 pb-2 gap-2.5">
-        <View className="bg-page border border-stitch rounded-card p-2.5 gap-2.5">
-          <View className="flex-row gap-1.5">
-            <Pressable
+      <View
+        className="px-3 pt-3 pb-2 gap-2.5"
+        style={{ paddingHorizontal: 12, paddingTop: 12, paddingBottom: 8, gap: 10 }}
+      >
+        <View
+          className="bg-page border border-stitch rounded-card p-2.5 gap-2.5"
+          style={{
+            backgroundColor: TOKENS.bgPage,
+            borderColor: TOKENS.borderSubtle,
+            borderWidth: 1,
+            borderRadius: 12,
+            padding: 10,
+            gap: 10,
+          }}
+        >
+          <View className="flex-row gap-1.5" style={{ flexDirection: 'row', gap: 6 }}>
+            <AnimatedPressable
               onPress={() => openCreateModal('set')}
               className="flex-1 min-h-[44px] bg-foil rounded-pocket px-2 flex-row items-center justify-center gap-1 active:opacity-85"
+              style={{
+                flex: 1,
+                minHeight: 44,
+                backgroundColor: TOKENS.accentPrimary,
+                borderRadius: 6,
+                paddingHorizontal: 8,
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 4,
+              }}
             >
               <Plus size={14} color={TOKENS.bgBinder} />
-              <Text className="font-sans-semi text-[11px] uppercase text-binder">
+              <Text
+                className="font-sans-semi text-[11px] uppercase text-binder"
+                style={{
+                  fontFamily: 'PlusJakartaSans_600SemiBold',
+                  fontSize: 11,
+                  color: TOKENS.bgBinder,
+                  fontWeight: '700',
+                  textTransform: 'uppercase',
+                }}
+              >
                 Set Oficial
               </Text>
-            </Pressable>
+            </AnimatedPressable>
 
-            <Pressable
+            <AnimatedPressable
               onPress={() => openCreateModal('manual')}
               className="flex-1 min-h-[44px] bg-pocket border border-foil/60 rounded-pocket px-2 flex-row items-center justify-center gap-1 active:opacity-80"
+              style={{
+                flex: 1,
+                minHeight: 44,
+                backgroundColor: TOKENS.bgPocket,
+                borderColor: 'rgba(229, 169, 60, 0.6)',
+                borderWidth: 1,
+                borderRadius: 6,
+                paddingHorizontal: 8,
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 4,
+              }}
             >
               <BookOpen size={14} color={TOKENS.accentPrimary} />
-              <Text className="font-sans-semi text-[11px] uppercase text-foil">
+              <Text
+                className="font-sans-semi text-[11px] uppercase text-foil"
+                style={{
+                  fontFamily: 'PlusJakartaSans_600SemiBold',
+                  fontSize: 11,
+                  color: TOKENS.accentPrimary,
+                  fontWeight: '700',
+                  textTransform: 'uppercase',
+                }}
+              >
                 Manual
               </Text>
-            </Pressable>
+            </AnimatedPressable>
 
-            <Pressable
+            <AnimatedPressable
               onPress={() => openCreateModal('dynamic')}
               className="flex-1 min-h-[44px] bg-pocket border border-foil/60 rounded-pocket px-2 flex-row items-center justify-center gap-1 active:opacity-80"
+              style={{
+                flex: 1,
+                minHeight: 44,
+                backgroundColor: TOKENS.bgPocket,
+                borderColor: 'rgba(229, 169, 60, 0.6)',
+                borderWidth: 1,
+                borderRadius: 6,
+                paddingHorizontal: 8,
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 4,
+              }}
             >
               <Sparkles size={14} color={TOKENS.accentPrimary} />
-              <Text className="font-sans-semi text-[11px] uppercase text-foil">
+              <Text
+                className="font-sans-semi text-[11px] uppercase text-foil"
+                style={{
+                  fontFamily: 'PlusJakartaSans_600SemiBold',
+                  fontSize: 11,
+                  color: TOKENS.accentPrimary,
+                  fontWeight: '700',
+                  textTransform: 'uppercase',
+                }}
+              >
                 Dinámico
               </Text>
-            </Pressable>
+            </AnimatedPressable>
           </View>
 
-          <View className="flex-row items-center justify-between pt-2 border-t border-stitch">
-            <View className="flex-row items-center gap-1.5">
+          <View
+            className="flex-row items-center justify-between pt-2 border-t border-stitch"
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              paddingTop: 8,
+              borderTopColor: TOKENS.borderSubtle,
+              borderTopWidth: 1,
+            }}
+          >
+            <View
+              className="flex-row items-center gap-1.5"
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+            >
               <Layers size={14} color={TOKENS.accentPrimary} />
-              <Text className="font-mono text-[10px] text-muted">
+              <Text
+                className="font-mono text-[10px] text-muted"
+                style={{ fontFamily: 'JetBrainsMono_400Regular', fontSize: 10, color: TOKENS.textMuted }}
+              >
                 FILTRAR
               </Text>
             </View>
 
-            <View className="flex-row gap-1">
+            <View className="flex-row gap-1" style={{ flexDirection: 'row', gap: 4 }}>
               {(
                 [
                   { id: 'all', label: 'Todos' },
@@ -161,7 +259,7 @@ export default function BindersScreen() {
               ).map((tab) => {
                 const active = filterType === tab.id;
                 return (
-                  <Pressable
+                  <AnimatedPressable
                     key={tab.id}
                     onPress={() => setFilterType(tab.id)}
                     className={`min-h-[44px] px-2.5 rounded-pocket border items-center justify-center ${
@@ -169,15 +267,31 @@ export default function BindersScreen() {
                         ? 'bg-pocket border-foil'
                         : 'bg-binder border-stitch'
                     }`}
+                    style={{
+                      minHeight: 44,
+                      paddingHorizontal: 10,
+                      borderRadius: 6,
+                      borderWidth: 1,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      backgroundColor: active ? TOKENS.bgPocket : TOKENS.bgBinder,
+                      borderColor: active ? TOKENS.accentPrimary : TOKENS.borderSubtle,
+                    }}
                   >
                     <Text
                       className={`font-mono text-[10px] uppercase ${
                         active ? 'text-foil' : 'text-muted'
                       }`}
+                      style={{
+                        fontFamily: 'JetBrainsMono_600SemiBold',
+                        fontSize: 10,
+                        color: active ? TOKENS.accentPrimary : TOKENS.textMuted,
+                        textTransform: 'uppercase',
+                      }}
                     >
                       {tab.label}
                     </Text>
-                  </Pressable>
+                  </AnimatedPressable>
                 );
               })}
             </View>
@@ -186,7 +300,7 @@ export default function BindersScreen() {
       </View>
 
       {/* Listado de álbumes persistidos en SQLite */}
-      <View className="flex-1 px-3">
+      <View className="flex-1 px-3" style={{ flex: 1, paddingHorizontal: 12 }}>
         {bindersQuery.isLoading ? (
           <BinderGridSkeleton pageLabel="SQLITE // CARGANDO ÁLBUMES..." />
         ) : bindersQuery.isError ? (
@@ -202,9 +316,10 @@ export default function BindersScreen() {
             keyExtractor={(item) => item.id}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={{ gap: 8, paddingBottom: 24 }}
-            renderItem={({ item }) => (
+            renderItem={({ item, index }) => (
               <BinderListItem
                 binder={item}
+                index={index}
                 cardCount={getBinderCardCount(item)}
                 onSelect={(binder) => setOpenedBinderId(binder.id)}
                 onDelete={(binderId) => deleteBinderMutation.mutate(binderId)}

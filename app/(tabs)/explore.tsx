@@ -25,6 +25,7 @@ import { ErrorCard } from '@/components/ui/ErrorCard';
 import { CardPocketItem } from '@/components/cards/CardPocketItem';
 import { CardDetailModal } from '@/components/cards/CardDetailModal';
 import { SetListItem } from '@/components/sets/SetListItem';
+import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
 import { usePreferencesStore } from '@/store/usePreferencesStore';
 import {
   useSetsQuery,
@@ -102,7 +103,7 @@ export default function ExploreScreen() {
     );
   }, [setsQuery.data, query]);
 
-  // Filtrado local de cartas dentro de una expansión abierta
+  // Filtrado local de cartas dentro de la vista detalle de una expansión
   const filteredSetCards = useMemo(() => {
     const cards = setDetailQuery.data?.cards ?? [];
     const term = setCardFilter.trim().toLowerCase();
@@ -110,57 +111,123 @@ export default function ExploreScreen() {
     return cards.filter(
       (c) =>
         c.name.toLowerCase().includes(term) ||
-        c.localId.toLowerCase().includes(term)
+        c.localId.toLowerCase().includes(term) ||
+        c.id.toLowerCase().includes(term)
     );
   }, [setDetailQuery.data?.cards, setCardFilter]);
 
-  const handleSelectQuickPokemon = (pokemonName: string) => {
-    setMode('cards');
-    setQuery(pokemonName);
-    setDebouncedQuery(pokemonName);
-  };
-
-  // Vista 1: Detalle de una expansión seleccionada (grilla 3x3 de sus cartas)
+  // Vista 1: Detalle de una expansión seleccionada con grilla 3x3 de cartas
   if (selectedSet) {
     const detail = setDetailQuery.data;
     const setLogoUrl = getSetLogoUrl(detail?.logo ?? selectedSet.logo);
-    const ownedInSetMap = setOwnedMapQuery.data ?? globalOwnedMap;
-    const ownedUniqueCount = Object.keys(ownedInSetMap).length;
+    const ownedMap = setOwnedMapQuery.data ?? {};
+    const ownedUniqueCount = Object.keys(ownedMap).length;
 
     return (
-      <SafeAreaView className="flex-1 bg-binder" edges={['top']}>
-        {/* Cabecera de expansión */}
-        <View className="px-3 pt-2.5 pb-3 border-b border-stitch bg-page">
-          <View className="flex-row items-center justify-between">
-            <Pressable
+      <SafeAreaView
+        className="flex-1 bg-binder"
+        edges={['top']}
+        style={{ flex: 1, backgroundColor: TOKENS.bgBinder }}
+      >
+        {/* Cabecera contextual del set seleccionado */}
+        <View
+          className="px-3 pt-2 pb-3 bg-page border-b border-stitch"
+          style={{
+            paddingHorizontal: 12,
+            paddingTop: 8,
+            paddingBottom: 12,
+            backgroundColor: TOKENS.bgPage,
+            borderBottomColor: TOKENS.borderSubtle,
+            borderBottomWidth: 1,
+          }}
+        >
+          <View
+            className="flex-row items-center justify-between"
+            style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}
+          >
+            <AnimatedPressable
               onPress={() => {
                 setSelectedSet(null);
                 setSetCardFilter('');
               }}
-              className="min-h-[44px] flex-row items-center gap-2 pr-3 active:opacity-80"
+              className="min-h-[44px] px-2.5 py-1.5 rounded-pocket bg-pocket border border-stitch flex-row items-center gap-1.5 active:border-foil"
+              style={{
+                minHeight: 44,
+                paddingHorizontal: 10,
+                borderRadius: 6,
+                backgroundColor: TOKENS.bgPocket,
+                borderColor: TOKENS.borderSubtle,
+                borderWidth: 1,
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 6,
+              }}
             >
-              <View className="w-8 h-8 rounded-pocket bg-pocket border border-stitch items-center justify-center">
-                <ArrowLeft size={16} color={TOKENS.accentPrimary} />
-              </View>
-              <Text className="font-mono text-xs uppercase text-foil">
-                Expansiones
+              <ArrowLeft size={16} color={TOKENS.accentPrimary} />
+              <Text
+                className="font-sans-semi text-xs uppercase text-foil"
+                style={{
+                  fontFamily: 'PlusJakartaSans_600SemiBold',
+                  fontSize: 12,
+                  color: TOKENS.accentPrimary,
+                  fontWeight: '600',
+                  textTransform: 'uppercase',
+                }}
+              >
+                Volver a Sets
               </Text>
-            </Pressable>
+            </AnimatedPressable>
 
-            <Pressable
+            <AnimatedPressable
               onPress={toggleLanguage}
               className="min-h-[44px] bg-pocket border border-foil/50 rounded-pocket px-3 flex-row items-center gap-1.5 active:opacity-80"
+              style={{
+                minHeight: 44,
+                backgroundColor: TOKENS.bgPocket,
+                borderColor: 'rgba(229, 169, 60, 0.5)',
+                borderWidth: 1,
+                borderRadius: 6,
+                paddingHorizontal: 12,
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 6,
+              }}
             >
               <Globe size={14} color={TOKENS.accentPrimary} />
-              <Text className="font-mono-semi text-xs uppercase text-foil">
+              <Text
+                className="font-mono-semi text-xs uppercase text-foil"
+                style={{
+                  fontFamily: 'JetBrainsMono_600SemiBold',
+                  fontSize: 12,
+                  color: TOKENS.accentPrimary,
+                  fontWeight: '700',
+                  textTransform: 'uppercase',
+                }}
+              >
                 {language}
               </Text>
-            </Pressable>
+            </AnimatedPressable>
           </View>
 
-          <View className="flex-row items-center gap-3 mt-2">
+          <View
+            className="flex-row items-center gap-3 mt-2"
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 8 }}
+          >
             {setLogoUrl ? (
-              <View className="w-20 h-12 bg-pocket border border-stitch rounded-pocket p-1.5 items-center justify-center">
+              <View
+                className="w-20 h-12 bg-pocket border border-stitch rounded-pocket p-1.5 items-center justify-center"
+                style={{
+                  width: 80,
+                  height: 48,
+                  backgroundColor: TOKENS.bgPocket,
+                  borderColor: TOKENS.borderSubtle,
+                  borderWidth: 1,
+                  borderRadius: 6,
+                  padding: 6,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
                 <Image
                   source={{ uri: setLogoUrl }}
                   style={{ width: '100%', height: '100%' }}
@@ -169,15 +236,27 @@ export default function ExploreScreen() {
               </View>
             ) : null}
 
-            <View className="flex-1">
-              <View className="flex-row items-center gap-2">
-                <Text className="font-mono text-[11px] uppercase text-foil">
+            <View className="flex-1" style={{ flex: 1 }}>
+              <View
+                className="flex-row items-center gap-2"
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}
+              >
+                <Text
+                  className="font-mono text-[11px] uppercase text-foil"
+                  style={{ fontFamily: 'JetBrainsMono_600SemiBold', fontSize: 11, color: TOKENS.accentPrimary }}
+                >
                   SET {selectedSet.id.toUpperCase()}
                 </Text>
                 {detail?.releaseDate ? (
-                  <View className="flex-row items-center gap-1">
+                  <View
+                    className="flex-row items-center gap-1"
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+                  >
                     <Calendar size={11} color={TOKENS.textMuted} />
-                    <Text className="font-mono text-[11px] text-muted tabular-nums">
+                    <Text
+                      className="font-mono text-[11px] text-muted tabular-nums"
+                      style={{ fontFamily: 'JetBrainsMono_400Regular', fontSize: 11, color: TOKENS.textMuted }}
+                    >
                       {detail.releaseDate}
                     </Text>
                   </View>
@@ -185,11 +264,20 @@ export default function ExploreScreen() {
               </View>
               <Text
                 className="font-display text-xl text-ink mt-0.5"
+                style={{
+                  fontFamily: 'SpaceGrotesk_700Bold',
+                  fontSize: 18,
+                  color: TOKENS.textPrimary,
+                  marginTop: 2,
+                }}
                 numberOfLines={1}
               >
                 {detail?.name ?? selectedSet.name}
               </Text>
-              <Text className="font-mono text-xs text-muted tabular-nums mt-0.5">
+              <Text
+                className="font-mono text-xs text-muted tabular-nums mt-0.5"
+                style={{ fontFamily: 'JetBrainsMono_400Regular', fontSize: 11, color: TOKENS.textMuted, marginTop: 2 }}
+              >
                 EN INVENTARIO: {ownedUniqueCount}/{selectedSet.cardCount.official}{' '}
                 • TOTAL SET: {selectedSet.cardCount.total}
               </Text>
@@ -197,7 +285,20 @@ export default function ExploreScreen() {
           </View>
 
           {/* Filtro rápido dentro de la expansión */}
-          <View className="mt-3 min-h-[44px] flex-row items-center bg-pocket border border-stitch rounded-pocket px-3">
+          <View
+            className="mt-3 min-h-[44px] flex-row items-center bg-pocket border border-stitch rounded-pocket px-3"
+            style={{
+              marginTop: 12,
+              minHeight: 44,
+              flexDirection: 'row',
+              alignItems: 'center',
+              backgroundColor: TOKENS.bgPocket,
+              borderColor: TOKENS.borderSubtle,
+              borderWidth: 1,
+              borderRadius: 6,
+              paddingHorizontal: 12,
+            }}
+          >
             <Search size={15} color={TOKENS.textMuted} />
             <TextInput
               value={setCardFilter}
@@ -205,11 +306,19 @@ export default function ExploreScreen() {
               placeholder="Filtrar carta o número en esta expansión..."
               placeholderTextColor={TOKENS.textMuted}
               className="flex-1 font-sans text-sm text-ink ml-2 py-2"
+              style={{
+                flex: 1,
+                fontFamily: 'PlusJakartaSans_400Regular',
+                fontSize: 13,
+                color: TOKENS.textPrimary,
+                marginLeft: 8,
+              }}
             />
             {setCardFilter.length > 0 ? (
               <Pressable
                 onPress={() => setSetCardFilter('')}
                 className="min-h-[44px] min-w-[44px] items-center justify-center -mr-2"
+                style={{ minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' }}
               >
                 <X size={16} color={TOKENS.textMuted} />
               </Pressable>
@@ -218,7 +327,7 @@ export default function ExploreScreen() {
         </View>
 
         {/* Contenido de la expansión */}
-        <View className="flex-1 px-2 pt-2">
+        <View className="flex-1 px-2 pt-2" style={{ flex: 1, paddingHorizontal: 8, paddingTop: 8 }}>
           {setDetailQuery.isLoading ? (
             <View className="p-1">
               <BinderGridSkeleton
@@ -244,24 +353,24 @@ export default function ExploreScreen() {
               initialNumToRender={12}
               maxToRenderPerBatch={12}
               windowSize={7}
-              renderItem={({ item }) => (
+              renderItem={({ item, index }) => (
                 <CardPocketItem
                   card={item}
+                  index={index}
                   officialTotal={selectedSet.cardCount.official}
-                  variantCounts={
-                    ownedInSetMap[item.id] ?? globalOwnedMap[item.id]
-                  }
+                  variantCounts={ownedMap[item.id]}
+                  dimIfMissing={false}
                   onPress={(card) => setActiveCard(card)}
                 />
               )}
               ListEmptyComponent={
-                <View className="p-1 mt-2">
+                <View className="p-2">
                   <EmptyState
-                    icon={Compass}
-                    badge={selectedSet.id.toUpperCase()}
-                    title="Sin cartas coincidentes en este set"
-                    description="Prueba con otro nombre o limpia el filtro numérico de la expansión."
-                    actionLabel="Mostrar todas las cartas"
+                    icon={Search}
+                    badge="FILTRO"
+                    title="No hay cartas que coincidan"
+                    description={`No se encontraron cartas en ${selectedSet.name} con "${setCardFilter.trim()}".`}
+                    actionLabel="Limpiar filtro"
                     onAction={() => setSetCardFilter('')}
                   />
                 </View>
@@ -290,7 +399,11 @@ export default function ExploreScreen() {
   const totalSetsCount = setsQuery.data?.length ?? 0;
 
   return (
-    <SafeAreaView className="flex-1 bg-binder" edges={['top']}>
+    <SafeAreaView
+      className="flex-1 bg-binder"
+      edges={['top']}
+      style={{ flex: 1, backgroundColor: TOKENS.bgBinder }}
+    >
       <ScreenHeader
         sectionCode="CATÁLOGO OFICIAL // TCGDEX API"
         title="Explorar Sets"
@@ -303,17 +416,42 @@ export default function ExploreScreen() {
       />
 
       {/* Panel de control: Selector de modo + Buscador + Idioma ES/EN */}
-      <View className="px-3 pt-3 pb-2 gap-2.5">
-        <View className="bg-page border border-stitch rounded-card p-2.5 gap-2.5">
+      <View
+        className="px-3 pt-3 pb-2 gap-2.5"
+        style={{ paddingHorizontal: 12, paddingTop: 12, paddingBottom: 8, gap: 10 }}
+      >
+        <View
+          className="bg-page border border-stitch rounded-card p-2.5 gap-2.5"
+          style={{
+            backgroundColor: TOKENS.bgPage,
+            borderColor: TOKENS.borderSubtle,
+            borderWidth: 1,
+            borderRadius: 12,
+            padding: 10,
+            gap: 10,
+          }}
+        >
           {/* Conmutador Expansiones vs Buscar Cartas */}
-          <View className="flex-row gap-2">
-            <Pressable
+          <View className="flex-row gap-2" style={{ flexDirection: 'row', gap: 8 }}>
+            <AnimatedPressable
               onPress={() => setMode('sets')}
               className={`flex-1 min-h-[44px] rounded-pocket border flex-row items-center justify-center gap-2 ${
                 mode === 'sets'
                   ? 'bg-pocket border-foil'
                   : 'bg-binder border-stitch'
               }`}
+              style={{
+                flex: 1,
+                minHeight: 44,
+                borderRadius: 6,
+                borderWidth: 1,
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                backgroundColor: mode === 'sets' ? TOKENS.bgPocket : TOKENS.bgBinder,
+                borderColor: mode === 'sets' ? TOKENS.accentPrimary : TOKENS.borderSubtle,
+              }}
             >
               <Layers
                 size={15}
@@ -325,18 +463,38 @@ export default function ExploreScreen() {
                 className={`font-sans-semi text-xs uppercase tracking-wider ${
                   mode === 'sets' ? 'text-foil' : 'text-muted'
                 }`}
+                style={{
+                  fontFamily: 'PlusJakartaSans_600SemiBold',
+                  fontSize: 12,
+                  fontWeight: '700',
+                  letterSpacing: 0.6,
+                  color: mode === 'sets' ? TOKENS.accentPrimary : TOKENS.textMuted,
+                  textTransform: 'uppercase',
+                }}
               >
                 Expansiones
               </Text>
-            </Pressable>
+            </AnimatedPressable>
 
-            <Pressable
+            <AnimatedPressable
               onPress={() => setMode('cards')}
               className={`flex-1 min-h-[44px] rounded-pocket border flex-row items-center justify-center gap-2 ${
                 mode === 'cards'
                   ? 'bg-pocket border-foil'
                   : 'bg-binder border-stitch'
               }`}
+              style={{
+                flex: 1,
+                minHeight: 44,
+                borderRadius: 6,
+                borderWidth: 1,
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                backgroundColor: mode === 'cards' ? TOKENS.bgPocket : TOKENS.bgBinder,
+                borderColor: mode === 'cards' ? TOKENS.accentPrimary : TOKENS.borderSubtle,
+              }}
             >
               <Sparkles
                 size={15}
@@ -348,15 +506,39 @@ export default function ExploreScreen() {
                 className={`font-sans-semi text-xs uppercase tracking-wider ${
                   mode === 'cards' ? 'text-foil' : 'text-muted'
                 }`}
+                style={{
+                  fontFamily: 'PlusJakartaSans_600SemiBold',
+                  fontSize: 12,
+                  fontWeight: '700',
+                  letterSpacing: 0.6,
+                  color: mode === 'cards' ? TOKENS.accentPrimary : TOKENS.textMuted,
+                  textTransform: 'uppercase',
+                }}
               >
                 Buscar Cartas
               </Text>
-            </Pressable>
+            </AnimatedPressable>
           </View>
 
           {/* Input de búsqueda + Botón de idioma ES/EN */}
-          <View className="flex-row items-center gap-2">
-            <View className="flex-1 min-h-[44px] flex-row items-center bg-pocket border border-stitch rounded-pocket px-3">
+          <View
+            className="flex-row items-center gap-2"
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}
+          >
+            <View
+              className="flex-1 min-h-[44px] flex-row items-center bg-pocket border border-stitch rounded-pocket px-3"
+              style={{
+                flex: 1,
+                minHeight: 44,
+                flexDirection: 'row',
+                alignItems: 'center',
+                backgroundColor: TOKENS.bgPocket,
+                borderColor: TOKENS.borderSubtle,
+                borderWidth: 1,
+                borderRadius: 6,
+                paddingHorizontal: 12,
+              }}
+            >
               <Search size={16} color={TOKENS.textMuted} />
               <TextInput
                 value={query}
@@ -368,6 +550,13 @@ export default function ExploreScreen() {
                 }
                 placeholderTextColor={TOKENS.textMuted}
                 className="flex-1 font-sans text-sm text-ink ml-2 py-2"
+                style={{
+                  flex: 1,
+                  fontFamily: 'PlusJakartaSans_400Regular',
+                  fontSize: 13,
+                  color: TOKENS.textPrimary,
+                  marginLeft: 8,
+                }}
                 returnKeyType="search"
               />
               {query.length > 0 ? (
@@ -377,28 +566,50 @@ export default function ExploreScreen() {
                     setDebouncedQuery('');
                   }}
                   className="min-h-[44px] min-w-[44px] items-center justify-center -mr-2"
+                  style={{ minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' }}
                 >
                   <X size={16} color={TOKENS.textMuted} />
                 </Pressable>
               ) : null}
             </View>
 
-            <Pressable
+            <AnimatedPressable
               onPress={toggleLanguage}
               className="min-h-[44px] bg-pocket border border-foil/50 rounded-pocket px-3.5 flex-row items-center justify-center gap-1.5 active:opacity-80"
+              style={{
+                minHeight: 44,
+                backgroundColor: TOKENS.bgPocket,
+                borderColor: 'rgba(229, 169, 60, 0.5)',
+                borderWidth: 1,
+                borderRadius: 6,
+                paddingHorizontal: 14,
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 6,
+              }}
             >
               <Globe size={14} color={TOKENS.accentPrimary} />
-              <Text className="font-mono-semi text-xs uppercase text-foil">
+              <Text
+                className="font-mono-semi text-xs uppercase text-foil"
+                style={{
+                  fontFamily: 'JetBrainsMono_600SemiBold',
+                  fontSize: 12,
+                  color: TOKENS.accentPrimary,
+                  fontWeight: '700',
+                  textTransform: 'uppercase',
+                }}
+              >
                 {language}
               </Text>
-            </Pressable>
+            </AnimatedPressable>
           </View>
         </View>
       </View>
 
       {/* Cuerpo dinámico según el modo activo */}
       {mode === 'sets' ? (
-        <View className="flex-1 px-3">
+        <View className="flex-1 px-3" style={{ flex: 1, paddingHorizontal: 12 }}>
           {setsQuery.isLoading ? (
             <BinderGridSkeleton pageLabel="TCGDEX // CARGANDO EXPANSIONES OFICIALES" />
           ) : setsQuery.isError ? (
@@ -417,9 +628,10 @@ export default function ExploreScreen() {
               initialNumToRender={12}
               maxToRenderPerBatch={15}
               windowSize={7}
-              renderItem={({ item }) => (
+              renderItem={({ item, index }) => (
                 <SetListItem
                   setItem={item}
+                  index={index}
                   onSelect={(setItem) => setSelectedSet(setItem)}
                 />
               )}
@@ -439,51 +651,84 @@ export default function ExploreScreen() {
           )}
         </View>
       ) : (
-        <View className="flex-1 px-2">
+        <View className="flex-1 px-2" style={{ flex: 1, paddingHorizontal: 8 }}>
           {debouncedQuery.length < 2 ? (
-            <View className="px-1 gap-3">
+            <View className="px-1 gap-3" style={{ paddingHorizontal: 4, gap: 12 }}>
               <EmptyState
                 icon={Sparkles}
                 badge={`TCGDEX ${language.toUpperCase()}`}
                 title="Busca cualquier Pokémon o número de carta"
                 description="Escribe al menos 2 caracteres (ej. Pikachu, Charizard, 199/165) o toca una búsqueda rápida para ver la grilla 3×3 en tiempo real."
                 actionLabel="Buscar Charizard"
-                onAction={() => handleSelectQuickPokemon('Charizard')}
-                secondaryActionLabel="Ver Expansiones"
-                onSecondaryAction={() => setMode('sets')}
+                onAction={() => {
+                  setQuery('Charizard');
+                  setDebouncedQuery('Charizard');
+                }}
               />
 
-              {/* Accesos rápidos de prueba para coleccionista */}
-              <View className="bg-page border border-stitch rounded-card p-3">
-                <Text className="font-mono text-[11px] uppercase text-muted mb-2">
-                  BÚSQUEDAS FRECUENTES // 1 TOQUE
+              {/* Atajos de búsqueda rápida */}
+              <View
+                className="bg-page border border-stitch rounded-card p-3"
+                style={{
+                  backgroundColor: TOKENS.bgPage,
+                  borderColor: TOKENS.borderSubtle,
+                  borderWidth: 1,
+                  borderRadius: 12,
+                  padding: 12,
+                }}
+              >
+                <Text
+                  className="font-mono text-[10px] text-muted uppercase tracking-wider mb-2"
+                  style={{ fontFamily: 'JetBrainsMono_400Regular', fontSize: 10, color: TOKENS.textMuted, marginBottom: 8 }}
+                >
+                  EJEMPLOS RÁPIDOS // 1 TOQUE
                 </Text>
-                <View className="flex-row flex-wrap gap-2">
-                  {QUICK_POKEMON_CHIPS.map((poke) => (
-                    <Pressable
-                      key={poke}
-                      onPress={() => handleSelectQuickPokemon(poke)}
-                      className="min-h-[44px] bg-pocket border border-stitch rounded-pocket px-3.5 items-center justify-center active:border-foil"
+                <View
+                  className="flex-row flex-wrap gap-1.5"
+                  style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}
+                >
+                  {QUICK_POKEMON_CHIPS.map((chip) => (
+                    <AnimatedPressable
+                      key={chip}
+                      onPress={() => {
+                        setQuery(chip);
+                        setDebouncedQuery(chip);
+                      }}
+                      className="min-h-[44px] bg-pocket border border-stitch rounded-pocket px-3 flex-row items-center justify-center active:border-foil"
+                      style={{
+                        minHeight: 44,
+                        backgroundColor: TOKENS.bgPocket,
+                        borderColor: TOKENS.borderSubtle,
+                        borderWidth: 1,
+                        borderRadius: 6,
+                        paddingHorizontal: 12,
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
                     >
-                      <Text className="font-sans-semi text-xs text-ink">
-                        {poke}
+                      <Text
+                        className="font-sans-medium text-xs text-ink"
+                        style={{ fontFamily: 'PlusJakartaSans_500Medium', fontSize: 12, color: TOKENS.textPrimary }}
+                      >
+                        {chip}
                       </Text>
-                    </Pressable>
+                    </AnimatedPressable>
                   ))}
                 </View>
               </View>
             </View>
           ) : cardSearchQuery.isLoading ? (
-            <View className="px-1">
+            <View className="p-1">
               <BinderGridSkeleton
-                pageLabel={`BUSCANDO "${debouncedQuery.toUpperCase()}" // 3×3`}
+                pageLabel={`BUSCANDO "${debouncedQuery.toUpperCase()}" // TCGDEX`}
               />
             </View>
           ) : cardSearchQuery.isError ? (
-            <View className="px-1">
+            <View className="p-1">
               <ErrorCard
-                title="Error al buscar cartas en TCGdex"
-                description="La consulta tardó demasiado o no hubo respuesta del servidor."
+                title="Fallo al buscar en TCGdex"
+                description="Hubo un problema al consultar la API remota. Comprueba tu conexión a internet."
                 retryLabel="Reintentar búsqueda"
                 onRetry={() => cardSearchQuery.refetch()}
               />
@@ -498,38 +743,24 @@ export default function ExploreScreen() {
               initialNumToRender={12}
               maxToRenderPerBatch={12}
               windowSize={7}
-              ListHeaderComponent={
-                <View className="px-1 pb-2 flex-row items-center justify-between">
-                  <Text className="font-mono text-xs text-muted uppercase">
-                    RESULTADOS PARA &quot;{debouncedQuery}&quot;
-                  </Text>
-                  <Text className="font-mono-semi text-xs text-foil tabular-nums">
-                    {(cardSearchQuery.data ?? []).length} CARTAS
-                  </Text>
-                </View>
-              }
-              renderItem={({ item }) => (
+              renderItem={({ item, index }) => (
                 <CardPocketItem
                   card={item}
+                  index={index}
                   variantCounts={globalOwnedMap[item.id]}
+                  dimIfMissing={false}
                   onPress={(card) => setActiveCard(card)}
                 />
               )}
               ListEmptyComponent={
-                <View className="px-1 mt-1">
+                <View className="p-1">
                   <EmptyState
                     icon={Search}
-                    badge={language.toUpperCase()}
-                    title={`Sin resultados para "${debouncedQuery}"`}
-                    description="Verifica el nombre del Pokémon o prueba cambiando el idioma del catálogo entre Español (ES) e Inglés (EN)."
-                    actionLabel={
-                      language === 'es'
-                        ? 'Probar en Inglés (EN)'
-                        : 'Probar en Español (ES)'
-                    }
-                    onAction={toggleLanguage}
-                    secondaryActionLabel="Limpiar búsqueda"
-                    onSecondaryAction={() => {
+                    badge="SIN RESULTADOS"
+                    title={`Sin cartas para "${debouncedQuery}"`}
+                    description="Verifica que el nombre o numeración esté bien escrito en el idioma seleccionado."
+                    actionLabel="Limpiar búsqueda"
+                    onAction={() => {
                       setQuery('');
                       setDebouncedQuery('');
                     }}
@@ -541,6 +772,7 @@ export default function ExploreScreen() {
         </View>
       )}
 
+      {/* Modal de detalle de carta para modificar inventario físico */}
       <CardDetailModal
         cardId={activeCard?.id ?? null}
         fallbackCard={activeCard}

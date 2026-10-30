@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, Image, Pressable } from 'react-native';
+import Animated, { SlideInUp } from 'react-native-reanimated';
 import {
   Plus,
   CheckCircle2,
@@ -10,6 +11,7 @@ import {
 import { getCardImageUrl, type TcgdexCardBrief } from '@/services/tcgdex';
 import type { CardVariant, BinderRow } from '@/db/schema';
 import type { CardVariantCounts } from '@/db/repository';
+import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
 import { TOKENS } from '@/theme/tokens';
 
 interface FloatingScannedCardProps {
@@ -54,37 +56,74 @@ export function FloatingScannedCard({
   const totalOwned = variantCounts?.total ?? 0;
 
   return (
-    <View className="bg-page border-2 border-foil rounded-card p-3 gap-2.5">
+    <Animated.View
+      entering={SlideInUp.duration(280).springify()}
+      className="bg-page border-2 border-foil rounded-card p-3 gap-2.5"
+      style={{
+        backgroundColor: TOKENS.bgPage,
+        borderColor: TOKENS.accentPrimary,
+        borderWidth: 2,
+        borderRadius: 12,
+        padding: 12,
+        gap: 10,
+      }}
+    >
       {/* Cabecera de identificación instantánea */}
-      <View className="flex-row items-center justify-between pb-2 border-b border-stitch">
-        <View className="flex-row items-center gap-1.5">
+      <View
+        className="flex-row items-center justify-between pb-2 border-b border-stitch"
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          paddingBottom: 8,
+          borderBottomColor: TOKENS.borderSubtle,
+          borderBottomWidth: 1,
+        }}
+      >
+        <View
+          className="flex-row items-center gap-1.5"
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+        >
           <Sparkles size={14} color={TOKENS.accentPrimary} />
-          <Text className="font-mono text-[10px] uppercase text-foil">
-            CARTA IDENTIFICADA // 1 TOQUE
+          <Text
+            className="font-mono text-xs uppercase tracking-wider text-foil"
+            style={{ fontFamily: 'JetBrainsMono_600SemiBold', fontSize: 11, color: TOKENS.accentPrimary }}
+          >
+            CARTA DETECTADA // 1 TOQUE
           </Text>
         </View>
 
-        <View className="flex-row items-center gap-1.5">
-          {justAddedCount > 0 ? (
-            <View className="bg-foil/20 border border-foil rounded-pocket px-2 py-0.5 flex-row items-center gap-1">
-              <CheckCircle2 size={11} color={TOKENS.accentPrimary} />
-              <Text className="font-mono-semi text-[10px] text-foil tabular-nums">
-                +{justAddedCount} GUARDADA
-              </Text>
-            </View>
-          ) : null}
-          <Text className="font-mono text-[11px] text-ink tabular-nums">
-            EN BÓVEDA: {totalOwned}
-          </Text>
-        </View>
-      </View>
-
-      {/* Ficha compacta de la carta + botón de 1 toque */}
-      <View className="flex-row items-center gap-3">
         <Pressable
           onPress={onOpenFullDetail}
-          style={{ aspectRatio: 5 / 7, width: 68 }}
-          className="bg-pocket border border-stitch rounded-pocket p-1 items-center justify-center overflow-hidden"
+          className="flex-row items-center gap-0.5"
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}
+        >
+          <Text
+            className="font-mono text-[11px] text-muted underline uppercase"
+            style={{ fontFamily: 'JetBrainsMono_400Regular', fontSize: 11, color: TOKENS.textMuted, textDecorationLine: 'underline' }}
+          >
+            Ficha completa
+          </Text>
+          <ChevronRight size={13} color={TOKENS.textMuted} />
+        </Pressable>
+      </View>
+
+      {/* Cuerpo principal: Miniatura de carta + datos */}
+      <View
+        className="flex-row gap-3 items-center"
+        style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}
+      >
+        <View
+          style={{
+            aspectRatio: 5 / 7,
+            width: 68,
+            backgroundColor: TOKENS.bgPocket,
+            borderColor: TOKENS.borderSubtle,
+            borderWidth: 1,
+            borderRadius: 6,
+            overflow: 'hidden',
+          }}
+          className="bg-pocket border border-stitch rounded-pocket overflow-hidden items-center justify-center"
         >
           {imageUrl && !imgError ? (
             <Image
@@ -94,105 +133,211 @@ export function FloatingScannedCard({
               onError={() => setImgError(true)}
             />
           ) : (
-            <Text className="font-mono text-[9px] text-muted text-center">
+            <Text
+              className="font-mono text-xs text-muted"
+              style={{ color: TOKENS.textMuted, fontSize: 11 }}
+            >
               #{card.localId}
             </Text>
           )}
-        </Pressable>
+        </View>
 
-        <View className="flex-1 gap-1">
-          <View className="flex-row items-center gap-1.5">
-            <View className="bg-pocket border border-stitch rounded-pocket px-1.5 py-0.5">
-              <Text className="font-mono text-[10px] text-foil uppercase">
-                {inferredSet}
+        <View className="flex-1" style={{ flex: 1 }}>
+          <View
+            className="flex-row items-center gap-2"
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}
+          >
+            <View
+              className="bg-pocket border border-stitch rounded-pocket px-1.5 py-0.5"
+              style={{
+                backgroundColor: TOKENS.bgPocket,
+                borderColor: TOKENS.borderSubtle,
+                borderWidth: 1,
+                borderRadius: 4,
+                paddingHorizontal: 6,
+                paddingVertical: 2,
+              }}
+            >
+              <Text
+                className="font-mono text-[10px] text-foil uppercase"
+                style={{ fontFamily: 'JetBrainsMono_600SemiBold', fontSize: 10, color: TOKENS.accentPrimary }}
+              >
+                {inferredSet} • #{card.localId}
               </Text>
             </View>
-            <Text className="font-mono text-xs text-muted tabular-nums">
-              #{card.localId.padStart(3, '0')}
+
+            <Text
+              className="font-mono text-[11px] text-muted tabular-nums"
+              style={{ fontFamily: 'JetBrainsMono_400Regular', fontSize: 11, color: TOKENS.textMuted }}
+            >
+              En bóveda: {totalOwned}
             </Text>
           </View>
 
-          <Pressable
-            onPress={onOpenFullDetail}
-            className="flex-row items-center gap-1"
+          <Text
+            className="font-display text-base text-ink mt-1"
+            style={{ fontFamily: 'SpaceGrotesk_700Bold', fontSize: 15, color: TOKENS.textPrimary, marginTop: 4 }}
+            numberOfLines={1}
           >
-            <Text
-              className="font-display text-base text-ink flex-1"
-              numberOfLines={1}
-            >
-              {card.name}
-            </Text>
-            <ChevronRight size={14} color={TOKENS.textMuted} />
-          </Pressable>
+            {card.name}
+          </Text>
 
-          {/* Selector de variante física en 1 toque */}
-          <View className="flex-row gap-1.5 mt-1">
+          {/* Selector de variante física (Normal, Reverse, Holo) */}
+          <View
+            className="flex-row gap-1.5 mt-2"
+            style={{ flexDirection: 'row', gap: 6, marginTop: 8 }}
+          >
             {VARIANT_PILLS.map((pill) => {
               const active = selectedVariant === pill.id;
-              const qty = variantCounts?.[pill.id] ?? 0;
+              const currentVariantCount = variantCounts
+                ? variantCounts[pill.id]
+                : 0;
               return (
-                <Pressable
+                <AnimatedPressable
                   key={pill.id}
                   onPress={() => onSelectVariant(pill.id)}
-                  className={`flex-1 min-h-[44px] rounded-pocket border px-1.5 items-center justify-center ${
+                  className={`flex-1 py-1 px-1.5 rounded-pocket border items-center justify-center ${
                     active
-                      ? 'bg-pocket border-foil'
-                      : 'bg-binder border-stitch'
+                      ? 'bg-foil border-foil'
+                      : 'bg-pocket border-stitch'
                   }`}
+                  style={{
+                    flex: 1,
+                    paddingVertical: 4,
+                    paddingHorizontal: 6,
+                    borderRadius: 6,
+                    borderWidth: 1,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: active ? TOKENS.accentPrimary : TOKENS.bgPocket,
+                    borderColor: active ? TOKENS.accentPrimary : TOKENS.borderSubtle,
+                  }}
                 >
                   <Text
-                    className={`font-mono text-[10px] tabular-nums ${
-                      active ? 'text-foil' : 'text-muted'
+                    className={`font-mono-semi text-[10px] uppercase ${
+                      active ? 'text-binder' : 'text-muted'
                     }`}
+                    style={{
+                      fontFamily: 'JetBrainsMono_600SemiBold',
+                      fontSize: 10,
+                      fontWeight: '700',
+                      color: active ? TOKENS.bgBinder : TOKENS.textMuted,
+                    }}
                   >
-                    {pill.code} ({qty})
+                    {pill.code} ({currentVariantCount})
                   </Text>
-                  <Text
-                    className={`font-sans-semi text-[10px] ${
-                      active ? 'text-ink' : 'text-muted'
-                    }`}
-                  >
-                    {pill.label}
-                  </Text>
-                </Pressable>
+                </AnimatedPressable>
               );
             })}
           </View>
         </View>
       </View>
 
-      {/* Selector de álbum destino opcional + Botón de agregado rápido en 1 toque */}
-      <View className="flex-row items-center gap-2 pt-1">
-        <Pressable
-          onPress={onCycleTargetBinder}
-          className="min-h-[44px] flex-1 bg-pocket border border-stitch rounded-pocket px-2.5 flex-row items-center gap-1.5 active:border-foil"
+      {/* Asignación a carpeta manual opcional */}
+      <View
+        className="pt-2 border-t border-stitch flex-row items-center justify-between"
+        style={{
+          paddingTop: 8,
+          borderTopColor: TOKENS.borderSubtle,
+          borderTopWidth: 1,
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+        }}
+      >
+        <View
+          className="flex-row items-center gap-1.5 flex-1 pr-2"
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1, paddingRight: 8 }}
         >
-          <BookOpen size={14} color={TOKENS.accentPrimary} />
-          <View className="flex-1">
-            <Text className="font-mono text-[9px] text-muted uppercase">
-              DESTINO
-            </Text>
+          <BookOpen size={13} color={TOKENS.accentPrimary} />
+          <Text
+            className="font-sans text-xs text-muted"
+            style={{ fontFamily: 'PlusJakartaSans_400Regular', fontSize: 11, color: TOKENS.textMuted }}
+            numberOfLines={1}
+          >
+            Carpeta:{' '}
             <Text
-              className="font-sans-medium text-xs text-ink"
-              numberOfLines={1}
+              className="font-sans-semi text-ink"
+              style={{ color: TOKENS.textPrimary, fontWeight: '600' }}
             >
-              {targetBinder
-                ? `Álbum: ${targetBinder.name}`
-                : 'Inventario Global (+ Sets)'}
+              {targetBinder ? targetBinder.name : 'Solo Inventario'}
             </Text>
-          </View>
-        </Pressable>
-
-        <Pressable
-          onPress={onQuickAdd}
-          className="min-h-[44px] bg-foil rounded-pocket px-4 flex-row items-center justify-center gap-1.5 active:opacity-85"
-        >
-          <Plus size={16} color={TOKENS.bgBinder} />
-          <Text className="font-sans-semi text-xs uppercase tracking-wider text-binder">
-            +1 {selectedVariant === 'normal' ? 'NRM' : selectedVariant === 'reverse' ? 'REV' : 'HLO'}
           </Text>
-        </Pressable>
+        </View>
+
+        <AnimatedPressable
+          onPress={onCycleTargetBinder}
+          className="min-h-[44px] bg-pocket border border-stitch rounded-pocket px-2.5 items-center justify-center active:border-foil"
+          style={{
+            minHeight: 44,
+            backgroundColor: TOKENS.bgPocket,
+            borderColor: TOKENS.borderSubtle,
+            borderWidth: 1,
+            borderRadius: 6,
+            paddingHorizontal: 10,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Text
+            className="font-mono text-[10px] text-foil uppercase"
+            style={{ fontFamily: 'JetBrainsMono_600SemiBold', fontSize: 10, color: TOKENS.accentPrimary }}
+          >
+            Cambiar
+          </Text>
+        </AnimatedPressable>
       </View>
-    </View>
+
+      {/* Botón de acción principal: Agregar en 1 toque */}
+      <AnimatedPressable
+        onPress={onQuickAdd}
+        className="min-h-[48px] bg-foil rounded-pocket py-3 px-4 flex-row items-center justify-center gap-2 active:opacity-90"
+        style={{
+          minHeight: 48,
+          backgroundColor: TOKENS.accentPrimary,
+          borderRadius: 6,
+          paddingVertical: 12,
+          paddingHorizontal: 16,
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 8,
+        }}
+      >
+        {justAddedCount > 0 ? (
+          <>
+            <CheckCircle2 size={18} color={TOKENS.bgBinder} />
+            <Text
+              className="font-sans-semi text-xs uppercase tracking-wider text-binder"
+              style={{
+                fontFamily: 'PlusJakartaSans_600SemiBold',
+                fontSize: 12,
+                fontWeight: '700',
+                color: TOKENS.bgBinder,
+                letterSpacing: 0.5,
+              }}
+            >
+              +1 Agregada (Total en sesión: {justAddedCount})
+            </Text>
+          </>
+        ) : (
+          <>
+            <Plus size={18} color={TOKENS.bgBinder} />
+            <Text
+              className="font-sans-semi text-xs uppercase tracking-wider text-binder"
+              style={{
+                fontFamily: 'PlusJakartaSans_600SemiBold',
+                fontSize: 12,
+                fontWeight: '700',
+                color: TOKENS.bgBinder,
+                letterSpacing: 0.5,
+              }}
+            >
+              Agregar a la Bóveda (1 Toque)
+            </Text>
+          </>
+        )}
+      </AnimatedPressable>
+    </Animated.View>
   );
 }

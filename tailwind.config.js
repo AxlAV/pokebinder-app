@@ -1,6 +1,17 @@
+const path = require('path');
+
+const rootDir = path.resolve(__dirname).split(path.sep).join('/');
+
 /** @type {import('tailwindcss').Config} */
 module.exports = {
-  content: ['./app/**/*.{js,jsx,ts,tsx}', './src/**/*.{js,jsx,ts,tsx}'],
+  content: [
+    `${rootDir}/app/**/*.{js,jsx,ts,tsx}`,
+    `${rootDir}/src/**/*.{js,jsx,ts,tsx}`,
+    './app/**/*.{js,jsx,ts,tsx}',
+    './src/**/*.{js,jsx,ts,tsx}',
+    '../app/**/*.{js,jsx,ts,tsx}',
+    '../src/**/*.{js,jsx,ts,tsx}',
+  ],
   presets: [require('nativewind/preset')],
   theme: {
     extend: {
