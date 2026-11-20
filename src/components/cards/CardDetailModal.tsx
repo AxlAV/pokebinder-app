@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,7 +7,7 @@ import {
   Modal,
   ScrollView,
 } from 'react-native';
-import { X, Plus, Minus, Sparkles, CheckCircle2, Layers } from 'lucide-react-native';
+import { X, Plus, Minus, Sparkles, CheckCircle2, Layers, FolderMinus } from 'lucide-react-native';
 import { ErrorCard } from '@/components/ui/ErrorCard';
 import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
 import { usePreferencesStore } from '@/store/usePreferencesStore';
@@ -22,6 +22,8 @@ import {
 } from '@/services/tcgdex';
 import type { CardVariant } from '@/db/schema';
 import type { CacheableCardInput } from '@/db/repository';
+import { inferSetIdFromCardId, getSetOfficialCode } from '@/utils/cardIds';
+import { resolveCardVariants } from '@/utils/cardVariants';
 import { TOKENS } from '@/theme/tokens';
 
 export interface CardSetContext {
@@ -37,6 +39,8 @@ interface CardDetailModalProps {
   fallbackCard?: TcgdexCardBrief | null;
   fallbackSet?: CardSetContext | null;
   onClose: () => void;
+  /** Solo en carpetas manuales: quita la carta de la carpeta (no del inventario). */
+  onRemoveFromBinder?: () => void;
 }
 
 const VARIANT_ROWS: ReadonlyArray<{
@@ -74,9 +78,15 @@ export function CardDetailModal({
   fallbackCard,
   fallbackSet,
   onClose,
+  onRemoveFromBinder,
 }: CardDetailModalProps) {
   const { language } = usePreferencesStore();
   const [imageError, setImageError] = useState(false);
+
+  // El modal queda montado entre cartas: un error de imagen no debe ocultar la siguiente.
+  useEffect(() => {
+    setImageError(false);
+  }, [cardId]);
 
   const detailQuery = useCardDetailQuery(language, cardId);
   const variantCountsQuery = useCardVariantCountsQuery(cardId);
@@ -104,9 +114,28 @@ export function CardDetailModal({
     : `#${displayLocalId}`;
 
   const resolvedSetId =
-    detail?.set?.id ?? fallbackSet?.id ?? cardId.split('-')[0] ?? 'unknown';
-  const resolvedSetName =
-    detail?.set?.name ?? fallbackSet?.name ?? resolvedSetId.toUpperCase();
+    detail?.set?.id ??
+    fallbackSet?.id ??
+    inferSetIdFromCardId(cardId, detail?.localId ?? fallbackCard?.localId);
+  // null = desconocido: no se pisa el nombre real que ya tenga la caché.
+  const resolvedSetName = detail?.set?.name ?? fallbackSet?.name ?? null;
+  const setOfficialCode = getSetOfficialCode(resolvedSetId);
+
+  const variantsInfo = resolveCardVariants({
+    cardName: displayName,
+    localId: displayLocalId,
+    setOfficialCount: officialSetCount,
+    rarity: detail?.rarity,
+    tcgdexVariants: detail?.variants,
+    existingCounts: counts,
+  });
+
+  const visibleVariantRows = VARIANT_ROWS.filter(
+    (row) =>
+      variantsInfo.availableVariants.includes(row.variant) ||
+      counts[row.variant] > 0
+  );
+  const duplicateCopies = Math.max(0, counts.total - 1);
 
   const handleAdjustVariant = (variant: CardVariant, delta: 1 | -1) => {
     const cardInput: CacheableCardInput = {
@@ -122,11 +151,9 @@ export function CardDetailModal({
         detail?.set?.cardCount?.total ?? fallbackSet?.totalCount ?? 0,
       rarity: detail?.rarity ?? null,
       types: detail?.types ?? [],
-      variants: detail?.variants ?? {
-        normal: true,
-        reverse: false,
-        holo: false,
-      },
+      // Sin ficha cargada se omite: así no se pisan las variantes oficiales ya cacheadas
+      // y la mutación completa los metadatos desde TCGdex.
+      variants: detail?.variants,
       illustrator: detail?.illustrator ?? null,
       language,
     };
@@ -388,11 +415,51 @@ export function CardDetailModal({
                     style={{ fontFamily: 'JetBrainsMono_400Regular', fontSize: 11, color: TOKENS.textMuted }}
                   >
                     TOTAL: {counts.total}
+                    {duplicateCopies > 0 ? ` (${duplicateCopies} REP.)` : ''}
                   </Text>
                 </View>
               </View>
 
-              {VARIANT_ROWS.map((row) => {
+              {variantsInfo.isSingleVariantSpecial &&
+              variantsInfo.specialBadgeLabel ? (
+                <View
+                  className="bg-page border border-foil/60 rounded-pocket px-2.5 py-1.5 flex-row items-center justify-between"
+                  style={{
+                    backgroundColor: TOKENS.bgPage,
+                    borderColor: 'rgba(229, 169, 60, 0.6)',
+                    borderWidth: 1,
+                    borderRadius: 6,
+                    paddingHorizontal: 10,
+                    paddingVertical: 6,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                  }}
+                >
+                  <Text
+                    className="font-mono-semi text-[10px] text-foil uppercase"
+                    style={{
+                      fontFamily: 'JetBrainsMono_600SemiBold',
+                      fontSize: 10,
+                      color: TOKENS.accentPrimary,
+                    }}
+                  >
+                    {variantsInfo.specialBadgeLabel}
+                  </Text>
+                  <Text
+                    className="font-mono text-[10px] text-muted"
+                    style={{
+                      fontFamily: 'JetBrainsMono_400Regular',
+                      fontSize: 10,
+                      color: TOKENS.textMuted,
+                    }}
+                  >
+                    Acabado único oficial
+                  </Text>
+                </View>
+              ) : null}
+
+              {visibleVariantRows.map((row) => {
                 const qty = counts[row.variant];
                 const isOfficialVariant = detail?.variants
                   ? Boolean(detail.variants[row.variant])
@@ -569,16 +636,38 @@ export function CardDetailModal({
                 >
                   EXPANSIÓN
                 </Text>
-                <Text
-                  className="font-sans-semi text-xs text-ink"
-                  style={{ fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 12, color: TOKENS.textPrimary }}
-                  numberOfLines={1}
+                <View
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 }}
                 >
-                  {detail?.set?.name ?? fallbackSet?.name ?? 'Catálogo TCGdex'}{' '}
-                  {(detail?.set?.id ?? fallbackSet?.id)
-                    ? `(${(detail?.set?.id ?? fallbackSet?.id ?? '').toUpperCase()})`
-                    : ''}
-                </Text>
+                  <View
+                    style={{
+                      backgroundColor: TOKENS.bgBinder,
+                      borderColor: TOKENS.textPrimary,
+                      borderWidth: 1.5,
+                      borderRadius: 3,
+                      paddingHorizontal: 5,
+                      paddingVertical: 1,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontFamily: 'JetBrainsMono_600SemiBold',
+                        fontSize: 10,
+                        color: TOKENS.textPrimary,
+                        fontWeight: '700',
+                      }}
+                    >
+                      {setOfficialCode}
+                    </Text>
+                  </View>
+                  <Text
+                    className="font-sans-semi text-xs text-ink"
+                    style={{ fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 12, color: TOKENS.textPrimary }}
+                    numberOfLines={1}
+                  >
+                    {detail?.set?.name ?? fallbackSet?.name ?? resolvedSetId.toUpperCase()}
+                  </Text>
+                </View>
               </View>
 
               {detail?.rarity ? (
@@ -641,6 +730,37 @@ export function CardDetailModal({
                 </View>
               ) : null}
             </View>
+
+            {onRemoveFromBinder ? (
+              <AnimatedPressable
+                onPress={onRemoveFromBinder}
+                className="min-h-[44px] rounded-pocket border border-lacquer/60 bg-binder flex-row items-center justify-center gap-2"
+                style={{
+                  minHeight: 44,
+                  borderRadius: 6,
+                  borderWidth: 1,
+                  borderColor: TOKENS.accentSecondary,
+                  backgroundColor: TOKENS.bgBinder,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                }}
+              >
+                <FolderMinus size={16} color={TOKENS.accentSecondary} />
+                <Text
+                  className="font-sans-semi text-xs uppercase text-lacquer"
+                  style={{
+                    fontFamily: 'PlusJakartaSans_600SemiBold',
+                    fontSize: 12,
+                    color: TOKENS.accentSecondary,
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  Quitar de esta carpeta
+                </Text>
+              </AnimatedPressable>
+            ) : null}
           </ScrollView>
         </View>
       </View>

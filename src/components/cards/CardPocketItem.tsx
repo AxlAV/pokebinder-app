@@ -36,6 +36,7 @@ export function CardPocketItem({
   const imageUrl = getCardImageUrl(card.image, 'low');
 
   const totalOwned = variantCounts?.total ?? 0;
+  const duplicateOwned = Math.max(0, totalOwned - 1);
   const isOwned = totalOwned > 0;
   const isMissingInBinder = dimIfMissing && !isOwned;
   const isHoloFoil = (variantCounts?.holo ?? 0) > 0;
@@ -141,29 +142,57 @@ export function CardPocketItem({
           {/* Destello holográfico sutil si la carta en inventario tiene variante Holo */}
           {isHoloFoil ? <HoloShimmer /> : null}
 
-          {/* Insignia de copias en inventario físico */}
+          {/* Insignia de copias en inventario físico y contador de repetidas */}
           {isOwned ? (
-            <View
-              className="absolute top-1 right-1 bg-binder/90 border border-foil rounded-pocket px-1.5 py-0.5"
-              style={{
-                position: 'absolute',
-                top: 4,
-                right: 4,
-                backgroundColor: 'rgba(17, 16, 21, 0.92)',
-                borderColor: TOKENS.accentPrimary,
-                borderWidth: 1,
-                borderRadius: 4,
-                paddingHorizontal: 6,
-                paddingVertical: 2,
-              }}
-            >
-              <Text
-                className="font-mono-semi text-[10px] text-foil tabular-nums"
-                style={{ color: TOKENS.accentPrimary, fontSize: 10, fontWeight: '700' }}
+            <>
+              <View
+                className="absolute top-1 right-1 bg-binder/90 border border-foil rounded-pocket px-1.5 py-0.5"
+                style={{
+                  position: 'absolute',
+                  top: 4,
+                  right: 4,
+                  backgroundColor: 'rgba(17, 16, 21, 0.92)',
+                  borderColor: TOKENS.accentPrimary,
+                  borderWidth: 1,
+                  borderRadius: 4,
+                  paddingHorizontal: 6,
+                  paddingVertical: 2,
+                }}
               >
-                ×{totalOwned}
-              </Text>
-            </View>
+                <Text
+                  className="font-mono-semi text-[10px] text-foil tabular-nums"
+                  style={{ color: TOKENS.accentPrimary, fontSize: 10, fontWeight: '700' }}
+                >
+                  ×{totalOwned}
+                </Text>
+              </View>
+              {duplicateOwned > 0 ? (
+                <View
+                  style={{
+                    position: 'absolute',
+                    top: 4,
+                    left: 4,
+                    backgroundColor: 'rgba(17, 16, 21, 0.92)',
+                    borderColor: TOKENS.accentSecondary,
+                    borderWidth: 1,
+                    borderRadius: 4,
+                    paddingHorizontal: 5,
+                    paddingVertical: 1.5,
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontFamily: 'JetBrainsMono_600SemiBold',
+                      color: TOKENS.accentSecondary,
+                      fontSize: 8,
+                      fontWeight: '700',
+                    }}
+                  >
+                    REP +{duplicateOwned}
+                  </Text>
+                </View>
+              ) : null}
+            </>
           ) : isMissingInBinder ? (
             <View
               className="absolute top-1 left-1 bg-binder/85 border border-stitch rounded-pocket px-1.5 py-0.5"

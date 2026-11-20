@@ -28,6 +28,7 @@ import {
 import { getSetLogoUrl, type TcgdexSetBrief } from '@/services/tcgdex';
 import type { DynamicRuleType } from '@/db/schema';
 import { ELEMENTAL_TYPES } from '@/utils/elementalTypes';
+import { getSetOfficialCode } from '@/utils/cardIds';
 import { BinderGridSkeleton } from '@/components/ui/BinderGridSkeleton';
 import { ErrorCard } from '@/components/ui/ErrorCard';
 import { TOKENS } from '@/theme/tokens';
@@ -73,6 +74,7 @@ export function CreateBinderModal({
     ELEMENTAL_TYPES[0].labelEs
   );
   const [dynamicCustomName, setDynamicCustomName] = useState('');
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const setsQuery = useSetsQuery(language);
   const createSetBinderMutation = useCreateSetBinderMutation();
@@ -86,7 +88,8 @@ export function CreateBinderModal({
     return all.filter(
       (s) =>
         s.name.toLowerCase().includes(term) ||
-        s.id.toLowerCase().includes(term)
+        s.id.toLowerCase().includes(term) ||
+        getSetOfficialCode(s.id).toLowerCase().includes(term)
     );
   }, [setsQuery.data, setSearch]);
 
@@ -98,30 +101,45 @@ export function CreateBinderModal({
     setManualDesc('');
     setPokemonRuleValue('');
     setDynamicCustomName('');
+    setSubmitError(null);
     onClose();
+  };
+
+  // mutateAsync rechaza si SQLite falla: sin catch era una promesa no manejada
+  // y el modal quedaba abierto sin explicar nada.
+  const runCreation = async (create: () => Promise<unknown>) => {
+    setSubmitError(null);
+    try {
+      await create();
+      resetAndClose();
+    } catch {
+      setSubmitError('No se pudo guardar el álbum en tu bóveda local. Inténtalo de nuevo.');
+    }
   };
 
   const handleCreateSetBinder = async () => {
     if (!selectedSet) return;
-    await createSetBinderMutation.mutateAsync({
-      setId: selectedSet.id,
-      setName: selectedSet.name,
-      setLogo: selectedSet.logo ?? null,
-      setOfficialCount: selectedSet.cardCount.official,
-      setTotalCount: selectedSet.cardCount.total,
-      customName: customSetName.trim() || undefined,
-    });
-    resetAndClose();
+    await runCreation(() =>
+      createSetBinderMutation.mutateAsync({
+        setId: selectedSet.id,
+        setName: selectedSet.name,
+        setLogo: selectedSet.logo ?? null,
+        setOfficialCount: selectedSet.cardCount.official,
+        setTotalCount: selectedSet.cardCount.total,
+        customName: customSetName.trim() || undefined,
+      })
+    );
   };
 
   const handleCreateManualBinder = async () => {
     const trimmed = manualName.trim();
     if (!trimmed) return;
-    await createManualBinderMutation.mutateAsync({
-      name: trimmed,
-      description: manualDesc.trim() || undefined,
-    });
-    resetAndClose();
+    await runCreation(() =>
+      createManualBinderMutation.mutateAsync({
+        name: trimmed,
+        description: manualDesc.trim() || undefined,
+      })
+    );
   };
 
   const handleCreateDynamicBinder = async () => {
@@ -134,12 +152,13 @@ export function CreateBinderModal({
         ? `Colección ${activeRuleValue}`
         : `Dominio ${activeRuleValue}`;
 
-    await createDynamicBinderMutation.mutateAsync({
-      name: dynamicCustomName.trim() || autoName,
-      ruleType,
-      ruleValue: activeRuleValue,
-    });
-    resetAndClose();
+    await runCreation(() =>
+      createDynamicBinderMutation.mutateAsync({
+        name: dynamicCustomName.trim() || autoName,
+        ruleType,
+        ruleValue: activeRuleValue,
+      })
+    );
   };
 
   const isSubmitting =
@@ -249,6 +268,12 @@ export function CreateBinderModal({
               </Text>
             </Pressable>
           </View>
+
+          {submitError ? (
+            <View className="px-4 pb-3">
+              <Text className="font-sans text-xs text-lacquer">{submitError}</Text>
+            </View>
+          ) : null}
 
           {mode === 'set' ? (
             <View className="px-4 pb-4 gap-3">

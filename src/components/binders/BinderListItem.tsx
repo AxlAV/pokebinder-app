@@ -12,6 +12,7 @@ import {
 } from 'lucide-react-native';
 import { getSetLogoUrl } from '@/services/tcgdex';
 import type { BinderRow } from '@/db/schema';
+import { getSetOfficialCode } from '@/utils/cardIds';
 import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
 import { TOKENS } from '@/theme/tokens';
 
@@ -42,8 +43,9 @@ export function BinderListItem({
   const isManualBinder = binder.type === 'manual';
   const logoUrl = isSetBinder ? getSetLogoUrl(binder.setLogo ?? undefined) : null;
 
+  // Mismo criterio que la carpeta abierta: total del set (incluye secretas).
   const targetTotal = isSetBinder
-    ? binder.setOfficialCount || binder.setTotalCount || 0
+    ? binder.setTotalCount || binder.setOfficialCount || 0
     : 0;
 
   const progressPct =
@@ -52,7 +54,7 @@ export function BinderListItem({
       : 0;
 
   const typeBadgeLabel = isSetBinder
-    ? `SET OFICIAL • ${(binder.setId ?? '').toUpperCase()}`
+    ? `[${getSetOfficialCode(binder.setId ?? '')}] • SET ${(binder.setId ?? '').toUpperCase()}`
     : isManualBinder
       ? 'CARPETA MANUAL'
       : `REGLA DINÁMICA • ${(binder.ruleValue ?? '').toUpperCase()}`;

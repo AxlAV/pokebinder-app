@@ -19,7 +19,7 @@ import {
   useManualBinderCountsMapQuery,
   useDeleteBinderMutation,
 } from '@/hooks/useDatabase';
-import { matchesElementalType } from '@/utils/elementalTypes';
+import { matchesElementalType, matchesPokemonRule } from '@/utils/elementalTypes';
 import type { BinderRow } from '@/db/schema';
 import { TOKENS } from '@/theme/tokens';
 
@@ -77,7 +77,7 @@ export default function BindersScreen() {
       const ruleVal = binder.ruleValue.trim().toLowerCase();
       if (binder.ruleType === 'pokemon') {
         return ownedCards.filter((entry) =>
-          entry.card.name.toLowerCase().includes(ruleVal)
+          matchesPokemonRule(entry.card.name, ruleVal)
         ).length;
       }
       if (binder.ruleType === 'element') {

@@ -1,6 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { CardVariant } from '@/db/schema';
+import { fetchCardDetail } from '@/services/tcgdex';
 import {
+  getCachedCardById,
   getCardVariantCounts,
   adjustCardVariantQuantity,
   setCardVariantQuantity,
@@ -39,6 +41,48 @@ export const DB_KEYS = {
     ['local-db', 'manual-binder-cards', binderId] as const,
   manualBinderCountsMap: ['local-db', 'manual-binder-counts-map'] as const,
 };
+
+const ENRICH_TIMEOUT_MS = 4000;
+
+/**
+ * Completa rareza, tipos y variantes antes de guardar una carta en inventario.
+ * Las cartas que llegan desde listas (escáner, set, buscador) solo traen id/nombre/imagen;
+ * sin esto las estadísticas por rareza quedaban "Sin especificar" y los álbumes
+ * dinámicos por tipo no las encontraban. Sin red, se guarda la ficha breve igual.
+ */
+async function enrichCardInput(
+  card: CacheableCardInput
+): Promise<CacheableCardInput> {
+  if (card.variants) return card;
+
+  const cached = await getCachedCardById(card.id);
+  if (cached?.rarity) return card;
+
+  try {
+    const detail = await fetchCardDetail(
+      card.language ?? 'es',
+      card.id,
+      ENRICH_TIMEOUT_MS
+    );
+    return {
+      ...card,
+      localId: detail.localId,
+      name: detail.name,
+      image: detail.image ?? card.image ?? null,
+      setId: detail.set.id,
+      setName: detail.set.name,
+      setLogo: detail.set.logo ?? card.setLogo ?? null,
+      setOfficialCount: detail.set.cardCount.official,
+      setTotalCount: detail.set.cardCount.total,
+      rarity: detail.rarity ?? null,
+      types: detail.types ?? [],
+      variants: detail.variants,
+      illustrator: detail.illustrator ?? null,
+    };
+  } catch {
+    return card;
+  }
+}
 
 export function useCardVariantCountsQuery(cardId: string | null) {
   return useQuery({
@@ -82,7 +126,7 @@ export function useAdjustCardVariantMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({
+    mutationFn: async ({
       card,
       variant,
       delta,
@@ -90,17 +134,11 @@ export function useAdjustCardVariantMutation() {
       card: CacheableCardInput;
       variant: CardVariant;
       delta: number;
-    }) => adjustCardVariantQuantity(card, variant, delta),
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: DB_KEYS.cardVariants(variables.card.id),
-      });
-      queryClient.invalidateQueries({
-        queryKey: DB_KEYS.setOwnedMap(variables.card.setId),
-      });
-      queryClient.invalidateQueries({ queryKey: DB_KEYS.ownedCards });
-      queryClient.invalidateQueries({ queryKey: DB_KEYS.stats });
-      queryClient.invalidateQueries({ queryKey: DB_KEYS.binders });
+    }) => adjustCardVariantQuantity(await enrichCardInput(card), variant, delta),
+    // Invalida todo lo local: la carta pudo cambiar de metadatos (set, tipos) al enriquecerse
+    // y esas lecturas a SQLite son baratas.
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: DB_KEYS.all });
     },
   });
 }
@@ -215,7 +253,7 @@ export function useDeleteBinderMutation() {
 export function useAddCardToManualBinderMutation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({
+    mutationFn: async ({
       binderId,
       card,
       position,
@@ -223,15 +261,9 @@ export function useAddCardToManualBinderMutation() {
       binderId: string;
       card: CacheableCardInput;
       position?: number;
-    }) => addCardToManualBinder(binderId, card, position),
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: DB_KEYS.manualBinderCards(variables.binderId),
-      });
-      queryClient.invalidateQueries({
-        queryKey: DB_KEYS.manualBinderCountsMap,
-      });
-      queryClient.invalidateQueries({ queryKey: DB_KEYS.binders });
+    }) => addCardToManualBinder(binderId, await enrichCardInput(card), position),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: DB_KEYS.all });
     },
   });
 }

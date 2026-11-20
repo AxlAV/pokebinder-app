@@ -15,10 +15,11 @@ export const ELEMENTAL_TYPES: ReadonlyArray<ElementalTypeOption> = [
   { id: 'darkness', labelEs: 'Oscura', labelEn: 'Darkness', code: 'DRK' },
   { id: 'metal', labelEs: 'Metálica', labelEn: 'Metal', code: 'MTL' },
   { id: 'dragon', labelEs: 'Dragón', labelEn: 'Dragon', code: 'DRG' },
+  { id: 'fairy', labelEs: 'Hada', labelEn: 'Fairy', code: 'FRY' },
   { id: 'colorless', labelEs: 'Incolora', labelEn: 'Colorless', code: 'CLR' },
 ] as const;
 
-function normalizeText(value: string): string {
+export function normalizeText(value: string): string {
   return value
     .trim()
     .toLowerCase()
@@ -79,4 +80,24 @@ export function getTcgdexTypeParam(
   );
   if (!found) return ruleValue.trim();
   return lang === 'es' ? found.labelEs : found.labelEn;
+}
+
+function toNameTokens(value: string): string[] {
+  return normalizeText(value)
+    .split(/[^a-z0-9]+/)
+    .filter((t) => t.length > 0);
+}
+
+/**
+ * Regla dinámica por Pokémon: coincide por palabras completas y en orden,
+ * para que "Mew" reúna "Mew ex" o "Mew de Team Rocket" pero no "Mewtwo".
+ */
+export function matchesPokemonRule(cardName: string, ruleValue: string): boolean {
+  const rule = toNameTokens(ruleValue);
+  if (rule.length === 0) return false;
+  const name = toNameTokens(cardName);
+  for (let i = 0; i + rule.length <= name.length; i++) {
+    if (rule.every((token, j) => name[i + j] === token)) return true;
+  }
+  return false;
 }

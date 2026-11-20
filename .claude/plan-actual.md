@@ -13,3 +13,27 @@
 11. [x] Pestaña "Estadísticas": total de cartas, desglose por rareza/variante y progreso general de colecciones. Se comprueba añadiendo cartas desde el escáner y viendo la actualización inmediata de los contadores.
 
 Siguiente: completado (pasos 1 al 11).
+
+---
+
+# Auditoría senior (2026-10-31)
+
+12. [x] Repositorio: upsert sin pisar setName/idioma/variantes con placeholders; ajuste de inventario atómico; posición MAX+1 en carpeta manual; orden natural por número; fecha de inventario en registros.
+13. [x] Utilidades: inferir setId con último guion (sets "P-A", "tk-ex-latia"); regla por Pokémon por palabra completa (Mew ≠ Mewtwo); tipo Hada/Fairy.
+14. [x] Servicio/hooks TCGdex: timeout en fetch; fracciones de galería (TG15/TG30) en búsqueda; catch del cacheo en segundo plano; enriquecer carta (rareza/tipos/variantes) antes de guardarla en inventario.
+15. [x] Escáner: apagar cámara fuera de foco; desempate por total impreso del set; conteo por carta; +1 solo al confirmar.
+16. [x] Modal de carta y carpetas: reset de imagen por carta; quitar carta de carpeta manual; paginador vuelve a la hoja 1 al filtrar; progreso unificado (obtenidas / total del set); errores en creación de álbum.
+17. [x] Estadísticas: "Últimas adiciones" por fecha de inventario y progreso con el mismo criterio.
+18. [x] app.json: plugins de expo-camera / expo-image-picker con textos de permiso y sin RECORD_AUDIO.
+19. [x] Verificación: typecheck + pruebas de lógica pura (parser OCR, inferencia setId, regla Pokémon).
+
+---
+
+# Mejoras de escáner, variantes reales, colección en 1 clic, repetidas y APK Release (2026-11-20)
+
+20. [x] Mapa oficial de códigos de colección (`SET_CODES` como `MEW`, `OBF`, `SVI`, `PAL`, `TEF`, `PRE`, etc.), detección de código de colección y mejoras de OCR/búsqueda en `src/utils/cardIds.ts`, `src/utils/ocrParser.ts` y `src/services/tcgdex.ts`.
+21. [x] Lógica de variantes reales por carta (`src/utils/cardVariants.ts`): ocultar selector Normal/Reverse en cartas Full Art / ex / Secret Rare / Ilustración (auto-seleccionar Holo) y mostrar solo variantes existentes en cartas estándar en `FloatingScannedCard.tsx` y `CardDetailModal.tsx`.
+22. [x] Escáner + Álbumes + Repetidas (`app/(tabs)/scanner.tsx`, `FloatingScannedCard.tsx`, `CardPocketItem.tsx`, `BinderPaginatedView.tsx`, `app/(tabs)/stats.tsx`): selector de "cuadradito negro de la colección" en 1 clic, ingreso manual directo (nombre + número + colección), auto-creación/guardado en álbum de la colección, filtro y contador de cartas repetidas.
+23. [x] Optimización SQLite (`upsertCachedCardsBatch` en transacción), reglas ProGuard/R8 para ML Kit OCR (`ComponentRegistrar` + `com.google.mlkit.**`), pruebas de lógica, typecheck y compilación de APK release funcional (`android/app/build/outputs/apk/release/app-release.apk` y `pokebinder.apk`, v1.0.3 / versionCode 4).
+
+Siguiente: completado (APK release v1.0.3 listo para instalar y probar).

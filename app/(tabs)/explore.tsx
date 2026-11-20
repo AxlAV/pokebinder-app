@@ -42,6 +42,7 @@ import {
   type TcgdexSetBrief,
 } from '@/services/tcgdex';
 import type { CardVariantCounts } from '@/db/repository';
+import { getSetOfficialCode } from '@/utils/cardIds';
 import { TOKENS } from '@/theme/tokens';
 
 type ExploreTabMode = 'sets' | 'cards';
@@ -99,7 +100,8 @@ export default function ExploreScreen() {
     return list.filter(
       (s) =>
         s.name.toLowerCase().includes(term) ||
-        s.id.toLowerCase().includes(term)
+        s.id.toLowerCase().includes(term) ||
+        getSetOfficialCode(s.id).toLowerCase().includes(term)
     );
   }, [setsQuery.data, query]);
 

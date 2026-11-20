@@ -49,7 +49,9 @@ export function useSetDetailQuery(
             setTotalCount: detail.cardCount.total,
             language: lang,
           }))
-        );
+        ).catch((cacheErr) => {
+          console.warn('[TCGdex] No se pudo cachear el set offline', cacheErr);
+        });
         return detail;
       } catch (err) {
         // Fallback offline desde SQLite si ya se había visitado la expansión

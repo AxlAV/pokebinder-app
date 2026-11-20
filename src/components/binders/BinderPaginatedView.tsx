@@ -30,11 +30,13 @@ import {
   useOwnedCardsQuery,
   useManualBinderCardsQuery,
   useAdjustCardVariantMutation,
+  useRemoveCardFromManualBinderMutation,
 } from '@/hooks/useDatabase';
 import { getSetLogoUrl, type TcgdexCardBrief } from '@/services/tcgdex';
 import type { BinderRow } from '@/db/schema';
 import type { CardVariantCounts } from '@/db/repository';
-import { matchesElementalType } from '@/utils/elementalTypes';
+import { matchesElementalType, matchesPokemonRule } from '@/utils/elementalTypes';
+import { inferSetIdFromCardId, getSetOfficialCode } from '@/utils/cardIds';
 import { CardPocketItem } from '@/components/cards/CardPocketItem';
 import { CardDetailModal } from '@/components/cards/CardDetailModal';
 import { AddCardToBinderModal } from '@/components/binders/AddCardToBinderModal';
@@ -48,7 +50,7 @@ interface BinderPaginatedViewProps {
   onBack: () => void;
 }
 
-type OwnershipFilter = 'all' | 'owned' | 'missing';
+type OwnershipFilter = 'all' | 'owned' | 'missing' | 'duplicates';
 
 interface PocketPage {
   pageNumber: number;
@@ -110,6 +112,7 @@ export function BinderPaginatedView({
   );
 
   const adjustMutation = useAdjustCardVariantMutation();
+  const removeFromBinderMutation = useRemoveCardFromManualBinderMutation();
 
   // Mapa global cardId -> conteo de variantes en inventario
   const globalOwnedMap = useMemo(() => {
@@ -120,9 +123,14 @@ export function BinderPaginatedView({
     return map;
   }, [ownedCardsQuery.data]);
 
-  const activeOwnedMap = isSetBinder
-    ? { ...globalOwnedMap, ...(setOwnedMapQuery.data ?? {}) }
-    : globalOwnedMap;
+  // Memo: un objeto nuevo en cada render invalidaba los useMemo de progreso y filtros.
+  const activeOwnedMap = useMemo(
+    () =>
+      isSetBinder
+        ? { ...globalOwnedMap, ...(setOwnedMapQuery.data ?? {}) }
+        : globalOwnedMap,
+    [isSetBinder, globalOwnedMap, setOwnedMapQuery.data]
+  );
 
   // Construcción de la lista base de cartas del álbum
   const baseCards: TcgdexCardBrief[] = useMemo(() => {
@@ -147,9 +155,7 @@ export function BinderPaginatedView({
 
       if (binder.ruleType === 'pokemon') {
         const matchedOwned = ownedList
-          .filter((entry) =>
-            entry.card.name.toLowerCase().includes(ruleVal)
-          )
+          .filter((entry) => matchesPokemonRule(entry.card.name, ruleVal))
           .map((entry) => ({
             id: entry.card.id,
             localId: entry.card.localId,
@@ -194,16 +200,23 @@ export function BinderPaginatedView({
     binder.ruleValue,
   ]);
 
-  // Estadísticas de progreso del álbum
+  // Estadísticas de progreso del álbum.
+  // Denominador = bolsillos que muestra la carpeta (total del set, con secretas):
+  // antes se dividía por el total oficial y las secretas daban "170/165".
   const progressStats = useMemo(() => {
     const totalSlots = isSetBinder
-      ? binder.setOfficialCount || baseCards.length
+      ? baseCards.length || binder.setTotalCount || binder.setOfficialCount || 0
       : baseCards.length;
 
     let ownedCount = 0;
+    let duplicateCopies = 0;
     for (const card of baseCards) {
-      if ((activeOwnedMap[card.id]?.total ?? 0) > 0) {
+      const total = activeOwnedMap[card.id]?.total ?? 0;
+      if (total > 0) {
         ownedCount += 1;
+        if (total > 1) {
+          duplicateCopies += total - 1;
+        }
       }
     }
 
@@ -212,17 +225,26 @@ export function BinderPaginatedView({
 
     return {
       ownedCount,
+      duplicateCopies,
       totalSlots,
       percentage,
     };
-  }, [isSetBinder, binder.setOfficialCount, baseCards, activeOwnedMap]);
+  }, [
+    isSetBinder,
+    binder.setTotalCount,
+    binder.setOfficialCount,
+    baseCards,
+    activeOwnedMap,
+  ]);
 
-  // Filtrado por estado (Todas / Obtenidas / Faltantes)
+  // Filtrado por estado (Todas / Obtenidas / Faltantes / Repetidas)
   const filteredCards = useMemo(() => {
     if (ownershipFilter === 'all') return baseCards;
     return baseCards.filter((c) => {
-      const owned = (activeOwnedMap[c.id]?.total ?? 0) > 0;
-      return ownershipFilter === 'owned' ? owned : !owned;
+      const total = activeOwnedMap[c.id]?.total ?? 0;
+      if (ownershipFilter === 'owned') return total > 0;
+      if (ownershipFilter === 'duplicates') return total > 1;
+      return total === 0;
     });
   }, [baseCards, ownershipFilter, activeOwnedMap]);
 
@@ -285,8 +307,18 @@ export function BinderPaginatedView({
       return;
     }
 
-    const inferredSetId =
-      binder.setId ?? card.id.split('-')[0] ?? 'unknown';
+    // Solo un álbum de set conoce el set de la carta. En carpetas manuales/dinámicas
+    // se usaba el nombre del álbum como nombre de set y se corrompía la caché.
+    const setContext =
+      isSetBinder && binder.setId
+        ? {
+            setId: binder.setId,
+            setName: binder.setName,
+            setLogo: binder.setLogo,
+            setOfficialCount: binder.setOfficialCount ?? undefined,
+            setTotalCount: binder.setTotalCount ?? undefined,
+          }
+        : { setId: inferSetIdFromCardId(card.id, card.localId), setName: null };
 
     adjustMutation.mutate({
       card: {
@@ -294,11 +326,7 @@ export function BinderPaginatedView({
         localId: card.localId,
         name: card.name,
         image: card.image ?? null,
-        setId: inferredSetId,
-        setName: binder.setName ?? binder.name,
-        setLogo: binder.setLogo ?? null,
-        setOfficialCount: binder.setOfficialCount ?? undefined,
-        setTotalCount: binder.setTotalCount ?? undefined,
+        ...setContext,
         language,
       },
       variant: 'normal',
@@ -355,7 +383,7 @@ export function BinderPaginatedView({
               )}
               <Text className="font-mono text-[10px] text-foil uppercase">
                 {isSetBinder
-                  ? `SET ${(binder.setId ?? '').toUpperCase()}`
+                  ? `${getSetOfficialCode(binder.setId ?? '')} • ${(binder.setId ?? '').toUpperCase()}`
                   : `REGLA: ${binder.ruleValue}`}
               </Text>
             </View>
@@ -385,7 +413,10 @@ export function BinderPaginatedView({
             <View className="flex-row items-center justify-between mt-1">
               <Text className="font-mono text-xs text-muted tabular-nums">
                 OBTENIDAS: {progressStats.ownedCount}/
-                {progressStats.totalSlots} CARTAS
+                {progressStats.totalSlots}
+                {progressStats.duplicateCopies > 0
+                  ? ` • REP: +${progressStats.duplicateCopies}`
+                  : ''}
               </Text>
               <Text className="font-mono-semi text-xs text-foil tabular-nums">
                 {progressStats.percentage.toFixed(1)}%
@@ -403,12 +434,13 @@ export function BinderPaginatedView({
 
         {/* Controles de filtro (Todas / Obtenidas / Faltantes) y Paginación */}
         <View className="flex-row items-center justify-between mt-3 pt-2.5 border-t border-stitch">
-          <View className="flex-row gap-1.5">
+          <View className="flex-row gap-1">
             {(
               [
                 { id: 'all', label: 'Todas' },
                 { id: 'owned', label: 'Obtenidas' },
-                { id: 'missing', label: 'Faltantes' },
+                { id: 'missing', label: 'Faltan' },
+                { id: 'duplicates', label: 'Repetidas' },
               ] as const
             ).map((f) => {
               const active = ownershipFilter === f.id;
@@ -418,6 +450,8 @@ export function BinderPaginatedView({
                   onPress={() => {
                     setOwnershipFilter(f.id);
                     setCurrentPage(0);
+                    // El pager conservaba el desplazamiento y mostraba otra hoja que "01".
+                    pagerRef.current?.scrollToOffset({ offset: 0, animated: false });
                   }}
                   className={`min-h-[44px] px-2.5 rounded-pocket border items-center justify-center ${
                     active
@@ -535,7 +569,10 @@ export function BinderPaginatedView({
                 title="No hay cartas en este filtro"
                 description="Cambia el filtro superior a 'Todas' para ver la hoja completa de 9 bolsillos."
                 actionLabel="Mostrar Todas las Cartas"
-                onAction={() => setOwnershipFilter('all')}
+                onAction={() => {
+                  setOwnershipFilter('all');
+                  setCurrentPage(0);
+                }}
               />
             )}
           </View>
@@ -647,6 +684,17 @@ export function BinderPaginatedView({
             : null
         }
         onClose={() => setActiveCard(null)}
+        onRemoveFromBinder={
+          isManualBinder && activeCard
+            ? () => {
+                removeFromBinderMutation.mutate({
+                  binderId: binder.id,
+                  cardId: activeCard.id,
+                });
+                setActiveCard(null);
+              }
+            : undefined
+        }
       />
 
       {isManualBinder ? (

@@ -1,5 +1,6 @@
-import { eq, and, gt, desc, asc, sql } from 'drizzle-orm';
-import { db } from '@/db/client';
+import { eq, and, gt, lte, desc, asc, sql } from 'drizzle-orm';
+import { compareLocalIds, getSetOfficialCode } from '@/utils/cardIds';
+import { db, sqliteDb } from '@/db/client';
 import {
   cachedCards,
   inventoryItems,
@@ -19,7 +20,8 @@ export interface CacheableCardInput {
   name: string;
   image?: string | null;
   setId: string;
-  setName: string;
+  /** null/undefined = nombre desconocido: no pisa el nombre real ya guardado en caché. */
+  setName?: string | null;
   setLogo?: string | null;
   setOfficialCount?: number;
   setTotalCount?: number;
@@ -40,6 +42,8 @@ export interface CardVariantCounts {
 export interface OwnedCardRecord {
   card: CachedCardRow;
   counts: CardVariantCounts;
+  /** Último cambio de inventario (no de la caché del catálogo). */
+  lastInventoryUpdate: number;
 }
 
 export interface InventoryStatsSummary {
@@ -85,7 +89,7 @@ export async function upsertCachedCard(
       name: input.name,
       image: input.image ?? null,
       setId: input.setId,
-      setName: input.setName,
+      setName: input.setName ?? input.setId.toUpperCase(),
       setLogo: input.setLogo ?? null,
       setOfficialCount: input.setOfficialCount ?? 0,
       setTotalCount: input.setTotalCount ?? 0,
@@ -103,7 +107,7 @@ export async function upsertCachedCard(
         name: input.name,
         image: sql`COALESCE(${input.image ?? null}, ${cachedCards.image})`,
         setId: input.setId,
-        setName: input.setName,
+        setName: sql`COALESCE(${input.setName ?? null}, ${cachedCards.setName})`,
         setLogo: sql`COALESCE(${input.setLogo ?? null}, ${cachedCards.setLogo})`,
         setOfficialCount:
           input.setOfficialCount && input.setOfficialCount > 0
@@ -122,21 +126,25 @@ export async function upsertCachedCard(
           ? variantsJson
           : sql`${cachedCards.variantsJson}`,
         illustrator: sql`COALESCE(${input.illustrator ?? null}, ${cachedCards.illustrator})`,
-        language: input.language ?? 'es',
+        language: input.language ?? sql`${cachedCards.language}`,
         updatedAt: now,
       },
     });
 }
 
 /**
- * Inserta o actualiza un lote de cartas (por ejemplo al abrir una expansión oficial).
+ * Inserta o actualiza un lote de cartas (por ejemplo al abrir una expansión oficial)
+ * dentro de una sola transacción SQLite para evitar contención y acelerar escrituras.
  */
 export async function upsertCachedCardsBatch(
   cards: CacheableCardInput[]
 ): Promise<void> {
-  for (const card of cards) {
-    await upsertCachedCard(card);
-  }
+  if (cards.length === 0) return;
+  await sqliteDb.withTransactionAsync(async () => {
+    for (const card of cards) {
+      await upsertCachedCard(card);
+    }
+  });
 }
 
 /**
@@ -159,11 +167,11 @@ export async function getCachedCardById(
 export async function getCachedCardsBySet(
   setId: string
 ): Promise<CachedCardRow[]> {
-  return db
+  const rows = await db
     .select()
     .from(cachedCards)
-    .where(eq(cachedCards.setId, setId))
-    .orderBy(asc(cachedCards.localId));
+    .where(eq(cachedCards.setId, setId));
+  return rows.sort((a, b) => compareLocalIds(a.localId, b.localId));
 }
 
 /**
@@ -235,15 +243,43 @@ export async function setCardVariantQuantity(
 
 /**
  * Incrementa o decrementa (+1 / -1) la cantidad de una variante física (NRM, REV, HLO).
+ * El cálculo se hace en SQL (quantity + delta) para que toques rápidos no pierdan copias:
+ * leer-sumar-escribir desde JS permitía que dos mutaciones leyeran el mismo valor.
  */
 export async function adjustCardVariantQuantity(
   card: CacheableCardInput,
   variant: CardVariant,
   delta: number
 ): Promise<CardVariantCounts> {
-  const current = await getCardVariantCounts(card.id);
-  const nextQuantity = Math.max(0, current[variant] + delta);
-  return setCardVariantQuantity(card, variant, nextQuantity);
+  await upsertCachedCard(card);
+
+  const step = Math.trunc(delta);
+  const rowId = buildInventoryId(card.id, variant);
+  const now = Date.now();
+
+  await db
+    .insert(inventoryItems)
+    .values({
+      id: rowId,
+      cardId: card.id,
+      variant,
+      quantity: Math.max(0, step),
+      updatedAt: now,
+    })
+    .onConflictDoUpdate({
+      target: inventoryItems.id,
+      set: {
+        quantity: sql`MAX(0, ${inventoryItems.quantity} + ${step})`,
+        // Solo las altas cuentan como "última adición"; restar no cambia la fecha.
+        updatedAt: step > 0 ? now : sql`${inventoryItems.updatedAt}`,
+      },
+    });
+
+  await db
+    .delete(inventoryItems)
+    .where(and(eq(inventoryItems.id, rowId), lte(inventoryItems.quantity, 0)));
+
+  return getCardVariantCounts(card.id);
 }
 
 /**
@@ -287,6 +323,7 @@ export async function getAllOwnedCardsWithInventory(): Promise<
       card: cachedCards,
       variant: inventoryItems.variant,
       quantity: inventoryItems.quantity,
+      inventoryUpdatedAt: inventoryItems.updatedAt,
     })
     .from(inventoryItems)
     .innerJoin(cachedCards, eq(inventoryItems.cardId, cachedCards.id))
@@ -298,9 +335,11 @@ export async function getAllOwnedCardsWithInventory(): Promise<
   for (const row of rows) {
     let entry = byCardId.get(row.card.id);
     if (!entry) {
+      // Filas ordenadas por fecha desc: la primera de cada carta es la más reciente.
       entry = {
         card: row.card,
         counts: { normal: 0, reverse: 0, holo: 0, total: 0 },
+        lastInventoryUpdate: row.inventoryUpdatedAt,
       };
       byCardId.set(row.card.id, entry);
     }
@@ -376,11 +415,25 @@ export async function createSetBinder(
   input: CreateSetBinderInput
 ): Promise<BinderRow> {
   const now = Date.now();
+
+  if (!input.customName?.trim()) {
+    const existing = await db
+      .select()
+      .from(binders)
+      .where(and(eq(binders.type, 'set'), eq(binders.setId, input.setId)))
+      .limit(1);
+    if (existing[0]) {
+      return existing[0];
+    }
+  }
+
   const id = `binder_set_${input.setId}_${now}`;
+  const code = getSetOfficialCode(input.setId);
+  const countLabel = input.setTotalCount || input.setOfficialCount;
   const newRow: typeof binders.$inferInsert = {
     id,
     name: input.customName?.trim() || input.setName,
-    description: `Set oficial ${input.setId.toUpperCase()} (${input.setOfficialCount} cartas)`,
+    description: `Colección [${code}] • ${input.setId.toUpperCase()} (${countLabel} cartas)`,
     type: 'set',
     setId: input.setId,
     setName: input.setName,
@@ -465,14 +518,27 @@ export async function deleteBinder(binderId: string): Promise<void> {
   await db.delete(binders).where(eq(binders.id, binderId));
 }
 
+/**
+ * Inserta una carta al final de una carpeta manual. Si ya estaba, conserva su bolsillo
+ * (antes se reescribía la posición y la carta saltaba de hoja).
+ */
 export async function addCardToManualBinder(
   binderId: string,
   card: CacheableCardInput,
-  position = 0
+  position?: number
 ): Promise<void> {
   await upsertCachedCard(card);
   const now = Date.now();
   const rowId = buildBinderCardId(binderId, card.id);
+
+  let targetPosition = position;
+  if (targetPosition === undefined) {
+    const [row] = await db
+      .select({ maxPos: sql<number | null>`MAX(${binderCards.position})` })
+      .from(binderCards)
+      .where(eq(binderCards.binderId, binderId));
+    targetPosition = (row?.maxPos ?? -1) + 1;
+  }
 
   await db
     .insert(binderCards)
@@ -480,16 +546,10 @@ export async function addCardToManualBinder(
       id: rowId,
       binderId,
       cardId: card.id,
-      position,
+      position: targetPosition,
       addedAt: now,
     })
-    .onConflictDoUpdate({
-      target: binderCards.id,
-      set: {
-        position,
-        addedAt: now,
-      },
-    });
+    .onConflictDoNothing({ target: binderCards.id });
 
   await db
     .update(binders)

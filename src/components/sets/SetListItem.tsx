@@ -3,6 +3,7 @@ import { View, Text, Image } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { ChevronRight, Layers } from 'lucide-react-native';
 import { getSetLogoUrl, getSetSymbolUrl, type TcgdexSetBrief } from '@/services/tcgdex';
+import { getSetOfficialCode } from '@/utils/cardIds';
 import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
 import { TOKENS } from '@/theme/tokens';
 
@@ -83,14 +84,13 @@ export function SetListItem({ setItem, index = 0, onSelect }: SetListItemProps) 
             style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
           >
             <View
-              className="bg-pocket border border-stitch rounded-pocket px-1.5 py-0.5 flex-row items-center gap-1"
               style={{
-                backgroundColor: TOKENS.bgPocket,
-                borderColor: TOKENS.borderSubtle,
-                borderWidth: 1,
-                borderRadius: 4,
-                paddingHorizontal: 6,
-                paddingVertical: 2,
+                backgroundColor: TOKENS.bgBinder,
+                borderColor: TOKENS.textPrimary,
+                borderWidth: 1.5,
+                borderRadius: 3,
+                paddingHorizontal: 5,
+                paddingVertical: 1.5,
                 flexDirection: 'row',
                 alignItems: 'center',
                 gap: 4,
@@ -104,8 +104,31 @@ export function SetListItem({ setItem, index = 0, onSelect }: SetListItemProps) 
                   onError={() => setSymbolError(true)}
                 />
               ) : (
-                <Layers size={10} color={TOKENS.accentPrimary} />
+                <Layers size={10} color={TOKENS.textPrimary} />
               )}
+              <Text
+                style={{
+                  fontFamily: 'JetBrainsMono_600SemiBold',
+                  color: TOKENS.textPrimary,
+                  fontSize: 10,
+                  fontWeight: '700',
+                }}
+              >
+                {getSetOfficialCode(setItem.id)}
+              </Text>
+            </View>
+
+            <View
+              className="bg-pocket border border-stitch rounded-pocket px-1.5 py-0.5"
+              style={{
+                backgroundColor: TOKENS.bgPocket,
+                borderColor: TOKENS.borderSubtle,
+                borderWidth: 1,
+                borderRadius: 4,
+                paddingHorizontal: 6,
+                paddingVertical: 2,
+              }}
+            >
               <Text
                 className="font-mono text-[10px] text-foil uppercase"
                 style={{ color: TOKENS.accentPrimary, fontSize: 10 }}

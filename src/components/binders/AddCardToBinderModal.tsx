@@ -19,6 +19,7 @@ import {
 import { getCardImageUrl, type TcgdexCardBrief } from '@/services/tcgdex';
 import { BinderGridSkeleton } from '@/components/ui/BinderGridSkeleton';
 import { ErrorCard } from '@/components/ui/ErrorCard';
+import { inferSetIdFromCardId } from '@/utils/cardIds';
 import { TOKENS } from '@/theme/tokens';
 
 interface AddCardToBinderModalProps {
@@ -84,13 +85,14 @@ export function AddCardToBinderModal({
         setOfficialCount: card.setOfficialCount,
         setTotalCount: card.setTotalCount,
         rarity: card.rarity,
+        language: card.language === 'en' ? 'en' : 'es',
       },
-      position: (existingBinderCardsQuery.data ?? []).length,
     });
   };
 
   const handleAddFromCatalog = (card: TcgdexCardBrief) => {
-    const inferredSetId = card.id.split('-')[0] ?? 'custom';
+    // La posición la calcula el repositorio (al final); el nombre del set lo completa
+    // la mutación desde TCGdex en vez de inventarlo con el ID.
     addCardMutation.mutate({
       binderId,
       card: {
@@ -98,11 +100,10 @@ export function AddCardToBinderModal({
         localId: card.localId,
         name: card.name,
         image: card.image ?? null,
-        setId: inferredSetId,
-        setName: inferredSetId.toUpperCase(),
+        setId: inferSetIdFromCardId(card.id, card.localId),
+        setName: null,
         language,
       },
-      position: (existingBinderCardsQuery.data ?? []).length,
     });
   };
 

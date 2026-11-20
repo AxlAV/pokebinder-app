@@ -86,7 +86,7 @@ export default function StatsScreen() {
         setName: string;
         uniqueOwned: number;
         physicalCopies: number;
-        officialTotal: number;
+        setTotal: number;
       }
     >();
 
@@ -97,8 +97,8 @@ export default function StatsScreen() {
           setName: binder.setName ?? binder.name,
           uniqueOwned: 0,
           physicalCopies: 0,
-          officialTotal:
-            binder.setOfficialCount || binder.setTotalCount || 0,
+          setTotal:
+            binder.setTotalCount || binder.setOfficialCount || 0,
         });
       }
     }
@@ -115,8 +115,8 @@ export default function StatsScreen() {
           setName: entry.card.setName,
           uniqueOwned: 1,
           physicalCopies: entry.counts.total,
-          officialTotal:
-            entry.card.setOfficialCount || entry.card.setTotalCount || 0,
+          setTotal:
+            entry.card.setTotalCount || entry.card.setOfficialCount || 0,
         });
       }
     }
@@ -126,9 +126,11 @@ export default function StatsScreen() {
     );
   }, [allBinders, ownedCards]);
 
+  // Por fecha de inventario: cached_cards.updatedAt cambia con solo abrir un set
+  // o una ficha, y mostraba como "adiciones" cartas que nadie había agregado.
   const recentCards = useMemo(() => {
     return [...ownedCards]
-      .sort((a, b) => b.card.updatedAt - a.card.updatedAt)
+      .sort((a, b) => b.lastInventoryUpdate - a.lastInventoryUpdate)
       .slice(0, 10);
   }, [ownedCards]);
 
@@ -220,27 +222,27 @@ export default function StatsScreen() {
 
               <View className="flex-row gap-2" style={{ flexDirection: 'row', gap: 8 }}>
                 <View
-                  className="flex-1 bg-pocket border border-stitch rounded-pocket p-3"
+                  className="flex-1 bg-pocket border border-stitch rounded-pocket p-2.5"
                   style={{
                     flex: 1,
                     backgroundColor: TOKENS.bgPocket,
                     borderColor: TOKENS.borderSubtle,
                     borderWidth: 1,
                     borderRadius: 6,
-                    padding: 12,
+                    padding: 10,
                   }}
                 >
                   <Text
                     className="font-mono text-[10px] text-muted uppercase"
-                    style={{ fontFamily: 'JetBrainsMono_400Regular', fontSize: 10, color: TOKENS.textMuted }}
+                    style={{ fontFamily: 'JetBrainsMono_400Regular', fontSize: 9, color: TOKENS.textMuted }}
                   >
                     TOTAL FÍSICO
                   </Text>
                   <Text
-                    className="font-mono-semi text-2xl text-ink tabular-nums mt-1"
+                    className="font-mono-semi text-xl text-ink tabular-nums mt-1"
                     style={{
                       fontFamily: 'JetBrainsMono_600SemiBold',
-                      fontSize: 24,
+                      fontSize: 20,
                       color: TOKENS.textPrimary,
                       marginTop: 4,
                     }}
@@ -248,35 +250,35 @@ export default function StatsScreen() {
                     {String(stats.totalPhysicalCopies).padStart(4, '0')}
                   </Text>
                   <Text
-                    className="font-sans text-xs text-muted mt-0.5"
-                    style={{ fontFamily: 'PlusJakartaSans_400Regular', fontSize: 11, color: TOKENS.textMuted, marginTop: 2 }}
+                    className="font-sans text-[11px] text-muted mt-0.5"
+                    style={{ fontFamily: 'PlusJakartaSans_400Regular', fontSize: 10, color: TOKENS.textMuted, marginTop: 2 }}
                   >
-                    Copias registradas
+                    Copias totales
                   </Text>
                 </View>
 
                 <View
-                  className="flex-1 bg-pocket border border-stitch rounded-pocket p-3"
+                  className="flex-1 bg-pocket border border-stitch rounded-pocket p-2.5"
                   style={{
                     flex: 1,
                     backgroundColor: TOKENS.bgPocket,
                     borderColor: TOKENS.borderSubtle,
                     borderWidth: 1,
                     borderRadius: 6,
-                    padding: 12,
+                    padding: 10,
                   }}
                 >
                   <Text
                     className="font-mono text-[10px] text-muted uppercase"
-                    style={{ fontFamily: 'JetBrainsMono_400Regular', fontSize: 10, color: TOKENS.textMuted }}
+                    style={{ fontFamily: 'JetBrainsMono_400Regular', fontSize: 9, color: TOKENS.textMuted }}
                   >
                     CARTAS ÚNICAS
                   </Text>
                   <Text
-                    className="font-mono-semi text-2xl text-foil tabular-nums mt-1"
+                    className="font-mono-semi text-xl text-foil tabular-nums mt-1"
                     style={{
                       fontFamily: 'JetBrainsMono_600SemiBold',
-                      fontSize: 24,
+                      fontSize: 20,
                       color: TOKENS.accentPrimary,
                       marginTop: 4,
                     }}
@@ -284,10 +286,54 @@ export default function StatsScreen() {
                     {String(stats.uniqueOwnedCards).padStart(4, '0')}
                   </Text>
                   <Text
-                    className="font-sans text-xs text-muted mt-0.5"
-                    style={{ fontFamily: 'PlusJakartaSans_400Regular', fontSize: 11, color: TOKENS.textMuted, marginTop: 2 }}
+                    className="font-sans text-[11px] text-muted mt-0.5"
+                    style={{ fontFamily: 'PlusJakartaSans_400Regular', fontSize: 10, color: TOKENS.textMuted, marginTop: 2 }}
                   >
-                    Distintas en bóveda
+                    En álbumes
+                  </Text>
+                </View>
+
+                <View
+                  className="flex-1 bg-pocket border border-stitch rounded-pocket p-2.5"
+                  style={{
+                    flex: 1,
+                    backgroundColor: TOKENS.bgPocket,
+                    borderColor:
+                      stats.totalPhysicalCopies - stats.uniqueOwnedCards > 0
+                        ? TOKENS.accentSecondary
+                        : TOKENS.borderSubtle,
+                    borderWidth: 1,
+                    borderRadius: 6,
+                    padding: 10,
+                  }}
+                >
+                  <Text
+                    className="font-mono text-[10px] text-muted uppercase"
+                    style={{ fontFamily: 'JetBrainsMono_400Regular', fontSize: 9, color: TOKENS.textMuted }}
+                  >
+                    REPETIDAS
+                  </Text>
+                  <Text
+                    className="font-mono-semi text-xl text-lacquer tabular-nums mt-1"
+                    style={{
+                      fontFamily: 'JetBrainsMono_600SemiBold',
+                      fontSize: 20,
+                      color: TOKENS.accentSecondary,
+                      marginTop: 4,
+                    }}
+                  >
+                    {String(
+                      Math.max(
+                        0,
+                        stats.totalPhysicalCopies - stats.uniqueOwnedCards
+                      )
+                    ).padStart(4, '0')}
+                  </Text>
+                  <Text
+                    className="font-sans text-[11px] text-muted mt-0.5"
+                    style={{ fontFamily: 'PlusJakartaSans_400Regular', fontSize: 10, color: TOKENS.textMuted, marginTop: 2 }}
+                  >
+                    Para cambio
                   </Text>
                 </View>
               </View>
@@ -462,10 +508,10 @@ export default function StatsScreen() {
 
                   {setProgressList.map((setInfo) => {
                     const pct =
-                      setInfo.officialTotal > 0
+                      setInfo.setTotal > 0
                         ? Math.min(
                             100,
-                            (setInfo.uniqueOwned / setInfo.officialTotal) * 100
+                            (setInfo.uniqueOwned / setInfo.setTotal) * 100
                           )
                         : 0;
                     return (
@@ -507,14 +553,14 @@ export default function StatsScreen() {
                               className="font-mono-semi text-xs text-foil tabular-nums"
                               style={{ fontFamily: 'JetBrainsMono_600SemiBold', fontSize: 11, color: TOKENS.accentPrimary }}
                             >
-                              {setInfo.officialTotal > 0
-                                ? `${setInfo.uniqueOwned}/${setInfo.officialTotal} (${pct.toFixed(1)}%)`
+                              {setInfo.setTotal > 0
+                                ? `${setInfo.uniqueOwned}/${setInfo.setTotal} (${pct.toFixed(1)}%)`
                                 : `${setInfo.uniqueOwned} ÚNICAS`}
                             </Text>
                           </View>
                         </View>
 
-                        {setInfo.officialTotal > 0 ? (
+                        {setInfo.setTotal > 0 ? (
                           <View
                             className="h-1.5 w-full bg-binder rounded-pocket overflow-hidden"
                             style={{
